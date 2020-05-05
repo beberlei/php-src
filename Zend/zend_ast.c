@@ -1591,7 +1591,9 @@ simple_list:
 			smart_str_appends(str, "const ");
 			goto simple_list;
 		case ZEND_AST_CLASS_CONST_DECL_ATTRIBUTES:
-			zend_ast_export_attributes(str, ast->child[1], indent, 1);
+			if (ast->child[1]) {
+				zend_ast_export_attributes(str, ast->child[1], indent, 1);
+			}
 			zend_ast_export_ex(str, ast->child[0], 0, indent);
 			break;
 		case ZEND_AST_NAME_LIST:
@@ -2190,9 +2192,8 @@ zend_ast * ZEND_FASTCALL zend_ast_with_attributes(zend_ast *ast, zend_ast *attr)
 	case ZEND_AST_PARAM:
 		ast->child[3] = attr;
 		break;
-	case ZEND_AST_CLASS_CONST_DECL:
-		ast = zend_ast_create(ZEND_AST_CLASS_CONST_DECL_ATTRIBUTES, ast, attr);
-		ast->lineno = ast->child[0]->lineno;
+	case ZEND_AST_CLASS_CONST_DECL_ATTRIBUTES:
+		ast->child[1] = attr;
 		break;
 	EMPTY_SWITCH_DEFAULT_CASE()
 	}

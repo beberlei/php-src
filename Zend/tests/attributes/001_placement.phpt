@@ -44,81 +44,96 @@ $sources = [
 
 foreach ($sources as $r) {
 	$attr = $r->getAttributes();
-	var_dump(count($attr));
+	var_dump(get_class($r), count($attr));
 	
     foreach ($attr as $a) {
         var_dump($a->getName(), $a->getArguments());
     }
+    
+    echo "\n";
 }
 
 ?>
 --EXPECT--
+string(15) "ReflectionClass"
 int(1)
 string(2) "A1"
 array(1) {
   [0]=>
   int(1)
 }
+
+string(23) "ReflectionClassConstant"
 int(1)
 string(2) "A1"
 array(1) {
   [0]=>
   int(2)
 }
-int(1)
-string(2) "A1"
-array(1) {
-  [0]=>
-  int(2)
-}
-int(1)
-string(2) "A1"
-array(1) {
-  [0]=>
-  int(3)
-}
+
+string(23) "ReflectionClassConstant"
+int(0)
+
+string(18) "ReflectionProperty"
 int(1)
 string(2) "A1"
 array(1) {
   [0]=>
   int(3)
 }
+
+string(18) "ReflectionProperty"
+int(0)
+
+string(16) "ReflectionMethod"
 int(1)
 string(2) "A1"
 array(1) {
   [0]=>
   int(4)
 }
+
+string(19) "ReflectionParameter"
 int(1)
 string(2) "A1"
 array(1) {
   [0]=>
   int(5)
 }
+
+string(19) "ReflectionParameter"
 int(1)
 string(2) "A1"
 array(1) {
   [0]=>
   int(6)
 }
+
+string(16) "ReflectionObject"
 int(1)
 string(2) "A1"
 array(1) {
   [0]=>
   int(7)
 }
+
+string(18) "ReflectionFunction"
 int(1)
 string(2) "A1"
 array(1) {
   [0]=>
   int(8)
 }
+
+string(18) "ReflectionFunction"
 int(1)
 string(2) "A1"
 array(1) {
   [0]=>
   int(9)
 }
+
+string(18) "ReflectionFunction"
 int(1)
 string(2) "A1"
 array(1) {
