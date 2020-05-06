@@ -24,6 +24,52 @@ ZEND_API zend_attributes_internal_validator zend_attribute_get_validator(zend_st
 	return zend_hash_find_ptr(&internal_validators, lcname);
 }
 
+ZEND_API void zend_attribute_free(zend_attribute *attr)
+{
+	uint32_t i;
+
+	zend_string_release(attr->name);
+	zend_string_release(attr->lcname);
+
+	for (i = 0; i < attr->argc; i++) {
+		zval_ptr_dtor(&attr->argv[i]);
+	}
+
+	efree(attr);
+}
+
+ZEND_API zend_attribute *zend_get_attribute(HashTable *attributes, zend_string *lcname, uint32_t offset)
+{
+	if (attributes) {
+		zend_attribute *attr;
+
+		ZEND_HASH_FOREACH_PTR(attributes, attr) {
+			if (attr->offset == offset && zend_string_equals(attr->lcname, lcname)) {
+				return attr;
+			}
+		} ZEND_HASH_FOREACH_END();
+	}
+
+	return NULL;
+}
+
+ZEND_API zend_attribute *zend_get_attribute_str(HashTable *attributes, const char *str, size_t len, uint32_t offset)
+{
+	if (attributes) {
+		zend_attribute *attr;
+
+		ZEND_HASH_FOREACH_PTR(attributes, attr) {
+			if (attr->offset == offset && ZSTR_LEN(attr->lcname) == len) {
+				if (0 == memcmp(ZSTR_VAL(attr->lcname), str, len)) {
+					return attr;
+				}
+			}
+		} ZEND_HASH_FOREACH_END();
+	}
+
+	return NULL;
+}
+
 ZEND_API void zend_compiler_attribute_register(zend_class_entry *ce, zend_attributes_internal_validator validator)
 {
 	zend_string *lcname = zend_string_tolower_ex(ce->name, 1);
