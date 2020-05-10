@@ -6318,6 +6318,50 @@ static void zend_begin_func_decl(znode *result, zend_op_array *op_array, zend_as
 }
 /* }}} */
 
+static void zend_compile_deprecated_func_decl(zend_string *name, zend_op_array *op_array, zend_attribute *deprecated) /* {{{ */
+{
+	zend_string *deprecation_message;
+
+	znode result;
+	zval fn_name, message, type;
+	zend_ast *name_ast, *args_ast, *call_ast, *message_ast, *type_ast;
+
+	if (op_array->scope) {
+		if (deprecated->argc == 0) {
+			deprecation_message = zend_strpprintf(0, "Method %s::%s() is deprecated", ZSTR_VAL(op_array->scope->name), ZSTR_VAL(name));
+		} else if (deprecated->argc == 1) {
+			deprecation_message = zend_strpprintf(0,
+				"Method %s::%s() is deprecated %s",
+				ZSTR_VAL(op_array->scope->name),
+				ZSTR_VAL(name),
+				ZSTR_VAL(Z_STR(deprecated->argv[0]))
+			);
+		}
+	} else {
+		if (deprecated->argc == 0) {
+			deprecation_message = zend_strpprintf(0, "Function %s() is deprecated", ZSTR_VAL(name));
+		} else if (deprecated->argc == 1) {
+			deprecation_message = zend_strpprintf(0, "Function %s() is deprecated %s", ZSTR_VAL(name), ZSTR_VAL(Z_STR(deprecated->argv[0])));
+		}
+	}
+
+	ZVAL_STRING(&fn_name, "trigger_error");
+	ZVAL_STR(&message, deprecation_message);
+	ZVAL_LONG(&type, E_USER_DEPRECATED);
+
+	name_ast = zend_ast_create_zval(&fn_name);
+	message_ast = zend_ast_create_zval(&message);
+	type_ast = zend_ast_create_zval(&type);
+
+	args_ast = zend_ast_create_list(2, ZEND_AST_ARG_LIST, message_ast, type_ast);
+	call_ast = zend_ast_create(ZEND_AST_CALL, name_ast, args_ast);
+
+	zend_compile_expr(&result, call_ast);
+
+	zval_ptr_dtor(&fn_name);
+	zval_ptr_dtor(&message);
+}
+
 void zend_compile_func_decl(znode *result, zend_ast *ast, zend_bool toplevel) /* {{{ */
 {
 	zend_ast_decl *decl = (zend_ast_decl *) ast;
@@ -6419,6 +6463,13 @@ void zend_compile_func_decl(znode *result, zend_ast *ast, zend_bool toplevel) /*
 	} else if (uses_ast) {
 		zend_compile_closure_uses(uses_ast);
 	}
+
+	zend_attribute *deprecated = zend_get_attribute_str(op_array->attributes, "deprecated", sizeof("deprecated")-1, 0);
+
+	if (deprecated && stmt_ast != NULL) {
+		zend_compile_deprecated_func_decl(decl->name, op_array, deprecated);
+	}
+
 	zend_compile_stmt(stmt_ast);
 
 	if (is_method) {
