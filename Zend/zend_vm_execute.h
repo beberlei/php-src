@@ -2836,10 +2836,10 @@ static ZEND_VM_HOT ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_JMP_FORWARD_SPEC_H
 static zend_never_inline ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL zend_interrupt_helper_SPEC(ZEND_OPCODE_HANDLER_ARGS)
 {
 	EG(vm_interrupt) = 0;
+	SAVE_OPLINE();
 	if (EG(timed_out)) {
 		zend_timeout(0);
 	} else if (zend_interrupt_function) {
-		SAVE_OPLINE();
 		zend_interrupt_function(execute_data);
 		ZEND_VM_ENTER();
 	}
@@ -3134,7 +3134,11 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_RECV_VARIADIC_SPEC_UNUSED_HAND
 			param = EX_VAR_NUM(EX(func)->op_array.last_var + EX(func)->op_array.T);
 			if (UNEXPECTED((EX(func)->op_array.fn_flags & ZEND_ACC_HAS_TYPE_HINTS) != 0)) {
 				do {
-					zend_verify_variadic_arg_type(EX(func), arg_num, param, CACHE_ADDR(opline->extended_value));
+					if (UNEXPECTED(!zend_verify_variadic_arg_type(EX(func), arg_num, param, CACHE_ADDR(opline->extended_value)))) {
+						ZEND_HASH_FILL_FINISH();
+						HANDLE_EXCEPTION();
+					}
+
 					if (Z_OPT_REFCOUNTED_P(param)) Z_ADDREF_P(param);
 					ZEND_HASH_FILL_ADD(param);
 					param++;
@@ -6450,7 +6454,6 @@ static ZEND_VM_COLD ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_SWITCH_LONG_SPEC_
 	HashTable *jumptable;
 
 	op = RT_CONSTANT(opline, opline->op1);
-	jumptable = Z_ARRVAL_P(RT_CONSTANT(opline, opline->op2));
 
 	if (Z_TYPE_P(op) != IS_LONG) {
 		ZVAL_DEREF(op);
@@ -6460,6 +6463,7 @@ static ZEND_VM_COLD ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_SWITCH_LONG_SPEC_
 		}
 	}
 
+	jumptable = Z_ARRVAL_P(RT_CONSTANT(opline, opline->op2));
 	jump_zv = zend_hash_index_find(jumptable, Z_LVAL_P(op));
 	if (jump_zv != NULL) {
 		ZEND_VM_SET_RELATIVE_OPCODE(opline, Z_LVAL_P(jump_zv));
@@ -6478,7 +6482,6 @@ static ZEND_VM_COLD ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_SWITCH_STRING_SPE
 	HashTable *jumptable;
 
 	op = RT_CONSTANT(opline, opline->op1);
-	jumptable = Z_ARRVAL_P(RT_CONSTANT(opline, opline->op2));
 
 	if (Z_TYPE_P(op) != IS_STRING) {
 		if (IS_CONST == IS_CONST) {
@@ -6493,6 +6496,7 @@ static ZEND_VM_COLD ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_SWITCH_STRING_SPE
 		}
 	}
 
+	jumptable = Z_ARRVAL_P(RT_CONSTANT(opline, opline->op2));
 	jump_zv = zend_hash_find_ex(jumptable, Z_STR_P(op), IS_CONST == IS_CONST);
 	if (jump_zv != NULL) {
 		ZEND_VM_SET_RELATIVE_OPCODE(opline, Z_LVAL_P(jump_zv));
@@ -11312,7 +11316,6 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_SWITCH_LONG_SPEC_TMPVARCV_CONS
 	HashTable *jumptable;
 
 	op = EX_VAR(opline->op1.var);
-	jumptable = Z_ARRVAL_P(RT_CONSTANT(opline, opline->op2));
 
 	if (Z_TYPE_P(op) != IS_LONG) {
 		ZVAL_DEREF(op);
@@ -11322,6 +11325,7 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_SWITCH_LONG_SPEC_TMPVARCV_CONS
 		}
 	}
 
+	jumptable = Z_ARRVAL_P(RT_CONSTANT(opline, opline->op2));
 	jump_zv = zend_hash_index_find(jumptable, Z_LVAL_P(op));
 	if (jump_zv != NULL) {
 		ZEND_VM_SET_RELATIVE_OPCODE(opline, Z_LVAL_P(jump_zv));
@@ -11340,7 +11344,6 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_SWITCH_STRING_SPEC_TMPVARCV_CO
 	HashTable *jumptable;
 
 	op = EX_VAR(opline->op1.var);
-	jumptable = Z_ARRVAL_P(RT_CONSTANT(opline, opline->op2));
 
 	if (Z_TYPE_P(op) != IS_STRING) {
 		if ((IS_TMP_VAR|IS_VAR|IS_CV) == IS_CONST) {
@@ -11355,6 +11358,7 @@ static ZEND_OPCODE_HANDLER_RET ZEND_FASTCALL ZEND_SWITCH_STRING_SPEC_TMPVARCV_CO
 		}
 	}
 
+	jumptable = Z_ARRVAL_P(RT_CONSTANT(opline, opline->op2));
 	jump_zv = zend_hash_find_ex(jumptable, Z_STR_P(op), (IS_TMP_VAR|IS_VAR|IS_CV) == IS_CONST);
 	if (jump_zv != NULL) {
 		ZEND_VM_SET_RELATIVE_OPCODE(opline, Z_LVAL_P(jump_zv));

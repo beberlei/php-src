@@ -506,6 +506,23 @@ ZEND_API int ZEND_FASTCALL zend_parse_arg_str_slow(zval *arg, zend_string **dest
 }
 /* }}} */
 
+ZEND_API int ZEND_FASTCALL zend_parse_arg_str_or_long_slow(zval *arg, zend_string **dest_str, zend_long *dest_long) /* {{{ */
+{
+	if (UNEXPECTED(ZEND_ARG_USES_STRICT_TYPES())) {
+		return 0;
+	}
+	if (zend_parse_arg_long_weak(arg, dest_long)) {
+		*dest_str = NULL;
+		return 1;
+	} else if (zend_parse_arg_str_weak(arg, dest_str)) {
+		*dest_long = 0;
+		return 1;
+	} else {
+		return 0;
+	}
+}
+/* }}} */
+
 static const char *zend_parse_arg_impl(int arg_num, zval *arg, va_list *va, const char **spec, char **error) /* {{{ */
 {
 	const char *spec_walk = *spec;
@@ -1578,7 +1595,7 @@ ZEND_API int array_set_zval_key(HashTable *ht, zval *key, zval *value) /* {{{ */
 			result = zend_symtable_update(ht, Z_STR_P(key), value);
 			break;
 		case IS_NULL:
-			result = zend_symtable_update(ht, ZSTR_EMPTY_ALLOC(), value);
+			result = zend_hash_update(ht, ZSTR_EMPTY_ALLOC(), value);
 			break;
 		case IS_RESOURCE:
 			zend_error(E_WARNING, "Resource ID#%d used as offset, casting to integer (%d)", Z_RES_HANDLE_P(key), Z_RES_HANDLE_P(key));
@@ -1958,71 +1975,61 @@ ZEND_API zend_module_entry* zend_register_internal_module(zend_module_entry *mod
 }
 /* }}} */
 
-ZEND_API void zend_check_magic_method_implementation(const zend_class_entry *ce, const zend_function *fptr, int error_type) /* {{{ */
+ZEND_API void zend_check_magic_method_implementation(const zend_class_entry *ce, const zend_function *fptr, zend_string *lcname, int error_type) /* {{{ */
 {
-	char lcname[16];
-	size_t name_len;
-
 	if (ZSTR_VAL(fptr->common.function_name)[0] != '_'
 	 || ZSTR_VAL(fptr->common.function_name)[1] != '_') {
 		return;
 	}
 
-	/* we don't care if the function name is longer, in fact lowercasing only
-	 * the beginning of the name speeds up the check process */
-	name_len = ZSTR_LEN(fptr->common.function_name);
-	zend_str_tolower_copy(lcname, ZSTR_VAL(fptr->common.function_name), MIN(name_len, sizeof(lcname)-1));
-	lcname[sizeof(lcname)-1] = '\0'; /* zend_str_tolower_copy won't necessarily set the zero byte */
-
-	if (name_len == sizeof(ZEND_DESTRUCTOR_FUNC_NAME) - 1 && !memcmp(lcname, ZEND_DESTRUCTOR_FUNC_NAME, sizeof(ZEND_DESTRUCTOR_FUNC_NAME) - 1) && fptr->common.num_args != 0) {
+	if (zend_string_equals_literal(lcname, ZEND_DESTRUCTOR_FUNC_NAME) && fptr->common.num_args != 0) {
 		zend_error(error_type, "Destructor %s::%s() cannot take arguments", ZSTR_VAL(ce->name), ZEND_DESTRUCTOR_FUNC_NAME);
-	} else if (name_len == sizeof(ZEND_CLONE_FUNC_NAME) - 1 && !memcmp(lcname, ZEND_CLONE_FUNC_NAME, sizeof(ZEND_CLONE_FUNC_NAME) - 1) && fptr->common.num_args != 0) {
+	} else if (zend_string_equals_literal(lcname, ZEND_CLONE_FUNC_NAME) && fptr->common.num_args != 0) {
 		zend_error(error_type, "Method %s::%s() cannot accept any arguments", ZSTR_VAL(ce->name), ZEND_CLONE_FUNC_NAME);
-	} else if (name_len == sizeof(ZEND_GET_FUNC_NAME) - 1 && !memcmp(lcname, ZEND_GET_FUNC_NAME, sizeof(ZEND_GET_FUNC_NAME) - 1)) {
+	} else if (zend_string_equals_literal(lcname, ZEND_GET_FUNC_NAME)) {
 		if (fptr->common.num_args != 1) {
 			zend_error(error_type, "Method %s::%s() must take exactly 1 argument", ZSTR_VAL(ce->name), ZEND_GET_FUNC_NAME);
 		} else if (QUICK_ARG_SHOULD_BE_SENT_BY_REF(fptr, 1)) {
 			zend_error(error_type, "Method %s::%s() cannot take arguments by reference", ZSTR_VAL(ce->name), ZEND_GET_FUNC_NAME);
 		}
-	} else if (name_len == sizeof(ZEND_SET_FUNC_NAME) - 1 && !memcmp(lcname, ZEND_SET_FUNC_NAME, sizeof(ZEND_SET_FUNC_NAME) - 1)) {
+	} else if (zend_string_equals_literal(lcname, ZEND_SET_FUNC_NAME)) {
 		if (fptr->common.num_args != 2) {
 			zend_error(error_type, "Method %s::%s() must take exactly 2 arguments", ZSTR_VAL(ce->name), ZEND_SET_FUNC_NAME);
 		} else if (QUICK_ARG_SHOULD_BE_SENT_BY_REF(fptr, 1) || QUICK_ARG_SHOULD_BE_SENT_BY_REF(fptr, 2)) {
 			zend_error(error_type, "Method %s::%s() cannot take arguments by reference", ZSTR_VAL(ce->name), ZEND_SET_FUNC_NAME);
 		}
-	} else if (name_len == sizeof(ZEND_UNSET_FUNC_NAME) - 1 && !memcmp(lcname, ZEND_UNSET_FUNC_NAME, sizeof(ZEND_UNSET_FUNC_NAME) - 1)) {
+	} else if (zend_string_equals_literal(lcname, ZEND_UNSET_FUNC_NAME)) {
 		if (fptr->common.num_args != 1) {
 			zend_error(error_type, "Method %s::%s() must take exactly 1 argument", ZSTR_VAL(ce->name), ZEND_UNSET_FUNC_NAME);
 		} else if (QUICK_ARG_SHOULD_BE_SENT_BY_REF(fptr, 1)) {
 			zend_error(error_type, "Method %s::%s() cannot take arguments by reference", ZSTR_VAL(ce->name), ZEND_UNSET_FUNC_NAME);
 		}
-	} else if (name_len == sizeof(ZEND_ISSET_FUNC_NAME) - 1 && !memcmp(lcname, ZEND_ISSET_FUNC_NAME, sizeof(ZEND_ISSET_FUNC_NAME) - 1)) {
+	} else if (zend_string_equals_literal(lcname, ZEND_ISSET_FUNC_NAME)) {
 		if (fptr->common.num_args != 1) {
 			zend_error(error_type, "Method %s::%s() must take exactly 1 argument", ZSTR_VAL(ce->name), ZEND_ISSET_FUNC_NAME);
 		} else if (QUICK_ARG_SHOULD_BE_SENT_BY_REF(fptr, 1)) {
 			zend_error(error_type, "Method %s::%s() cannot take arguments by reference", ZSTR_VAL(ce->name), ZEND_ISSET_FUNC_NAME);
 		}
-	} else if (name_len == sizeof(ZEND_CALL_FUNC_NAME) - 1 && !memcmp(lcname, ZEND_CALL_FUNC_NAME, sizeof(ZEND_CALL_FUNC_NAME) - 1)) {
+	} else if (zend_string_equals_literal(lcname, ZEND_CALL_FUNC_NAME)) {
 		if (fptr->common.num_args != 2) {
 			zend_error(error_type, "Method %s::%s() must take exactly 2 arguments", ZSTR_VAL(ce->name), ZEND_CALL_FUNC_NAME);
 		} else if (QUICK_ARG_SHOULD_BE_SENT_BY_REF(fptr, 1) || QUICK_ARG_SHOULD_BE_SENT_BY_REF(fptr, 2)) {
 			zend_error(error_type, "Method %s::%s() cannot take arguments by reference", ZSTR_VAL(ce->name), ZEND_CALL_FUNC_NAME);
 		}
-	} else if (name_len == sizeof(ZEND_CALLSTATIC_FUNC_NAME) - 1 &&
-		!memcmp(lcname, ZEND_CALLSTATIC_FUNC_NAME, sizeof(ZEND_CALLSTATIC_FUNC_NAME)-1)
-	) {
+	} else if (zend_string_equals_literal(lcname, ZEND_CALLSTATIC_FUNC_NAME)) {
 		if (fptr->common.num_args != 2) {
 			zend_error(error_type, "Method %s::__callStatic() must take exactly 2 arguments", ZSTR_VAL(ce->name));
 		} else if (QUICK_ARG_SHOULD_BE_SENT_BY_REF(fptr, 1) || QUICK_ARG_SHOULD_BE_SENT_BY_REF(fptr, 2)) {
 			zend_error(error_type, "Method %s::__callStatic() cannot take arguments by reference", ZSTR_VAL(ce->name));
 		}
- 	} else if (name_len == sizeof(ZEND_TOSTRING_FUNC_NAME) - 1 &&
- 		!memcmp(lcname, ZEND_TOSTRING_FUNC_NAME, sizeof(ZEND_TOSTRING_FUNC_NAME)-1) && fptr->common.num_args != 0
-	) {
-		zend_error(error_type, "Method %s::%s() cannot take arguments", ZSTR_VAL(ce->name), ZEND_TOSTRING_FUNC_NAME);
-	} else if (name_len == sizeof(ZEND_DEBUGINFO_FUNC_NAME) - 1 &&
-		!memcmp(lcname, ZEND_DEBUGINFO_FUNC_NAME, sizeof(ZEND_DEBUGINFO_FUNC_NAME)-1) && fptr->common.num_args != 0) {
-		zend_error(error_type, "Method %s::%s() cannot take arguments", ZSTR_VAL(ce->name), ZEND_DEBUGINFO_FUNC_NAME);
+	} else if (zend_string_equals_literal(lcname, ZEND_TOSTRING_FUNC_NAME) && fptr->common.num_args != 0) {
+		zend_error(error_type, "Method %s::__toString() cannot take arguments", ZSTR_VAL(ce->name));
+	} else if (zend_string_equals_literal(lcname, ZEND_DEBUGINFO_FUNC_NAME) && fptr->common.num_args != 0) {
+		zend_error(error_type, "Method %s::__debugInfo() cannot take arguments", ZSTR_VAL(ce->name));
+	} else if (zend_string_equals_literal(lcname, "__serialize") && fptr->common.num_args != 0) {
+		zend_error(error_type, "Method %s::__serialize() cannot take arguments", ZSTR_VAL(ce->name));
+	} else if (zend_string_equals_literal(lcname, "__unserialize") && fptr->common.num_args != 1) {
+		zend_error(error_type, "Method %s::__unserialize() must take exactly 1 argument", ZSTR_VAL(ce->name));
 	}
 }
 /* }}} */
@@ -2241,7 +2248,8 @@ ZEND_API int zend_register_functions(zend_class_entry *scope, const zend_functio
 				reg_function = NULL;
 			}
 			if (reg_function) {
-				zend_check_magic_method_implementation(scope, reg_function, error_type);
+				zend_check_magic_method_implementation(
+					scope, reg_function, lowercase_name, error_type);
 			}
 		}
 		ptr++;
@@ -2286,7 +2294,6 @@ ZEND_API int zend_register_functions(zend_class_entry *scope, const zend_functio
 			}
 		}
 		if (dtor) {
-			dtor->common.fn_flags |= ZEND_ACC_DTOR;
 			if (dtor->common.fn_flags & ZEND_ACC_STATIC) {
 				zend_error(error_type, "Destructor %s::%s() cannot be static", ZSTR_VAL(scope->name), ZSTR_VAL(dtor->common.function_name));
 			}
@@ -2696,27 +2703,9 @@ ZEND_API int zend_set_hash_symbol(zval *symbol, const char *name, int name_lengt
 
 /* Disabled functions support */
 
-/* {{{ proto void display_disabled_function(void)
-Dummy function which displays an error when a disabled function is called. */
-ZEND_API ZEND_COLD ZEND_FUNCTION(display_disabled_function)
-{
-	zend_error(E_WARNING, "%s() has been disabled for security reasons", get_active_function_name());
-}
-/* }}} */
-
 ZEND_API int zend_disable_function(char *function_name, size_t function_name_length) /* {{{ */
 {
-	zend_internal_function *func;
-	if ((func = zend_hash_str_find_ptr(CG(function_table), function_name, function_name_length))) {
-		zend_free_internal_arg_info(func);
-	    func->fn_flags &= ~(ZEND_ACC_VARIADIC | ZEND_ACC_HAS_TYPE_HINTS | ZEND_ACC_HAS_RETURN_TYPE);
-		func->num_args = 0;
-		func->required_num_args = 0;
-		func->arg_info = NULL;
-		func->handler = ZEND_FN(display_disabled_function);
-		return SUCCESS;
-	}
-	return FAILURE;
+	return zend_hash_str_del(CG(function_table), function_name, function_name_length);
 }
 /* }}} */
 

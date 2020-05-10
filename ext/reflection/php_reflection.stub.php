@@ -107,7 +107,10 @@ class ReflectionFunction extends ReflectionFunctionAbstract
 
     public function __toString(): string {}
 
-    /** @return bool */
+    /**
+     * @return bool
+     * @deprecated ReflectionFunction can no longer be constructed for disabled functions
+     */
     public function isDisabled() {}
 
     /** @return mixed */
@@ -481,10 +484,9 @@ class ReflectionParameter implements Reflector
     final private function __clone() {}
 
     /**
-     * @param string|array|object
-     * @param int|string
+     * @param $function string|array|object
      */
-    public function __construct($function,  $parameter) {}
+    public function __construct($function, int|string $parameter) {}
 
     public function __toString(): string {}
 

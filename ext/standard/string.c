@@ -931,12 +931,12 @@ PHP_FUNCTION(wordwrap)
 	}
 
 	if (breakchar_len == 0) {
-		zend_value_error("Break string cannot be empty");
+		zend_argument_value_error(3, "cannot be empty");
 		RETURN_THROWS();
 	}
 
 	if (linelength == 0 && docut) {
-		zend_value_error("Can't force cut when width is zero");
+		zend_argument_value_error(4, "cannot be true when argument #2 ($width) is 0");
 		RETURN_THROWS();
 	}
 
@@ -1143,7 +1143,7 @@ PHP_FUNCTION(explode)
 	ZEND_PARSE_PARAMETERS_END();
 
 	if (ZSTR_LEN(delim) == 0) {
-		zend_value_error("Empty delimiter");
+		zend_argument_value_error(1, "cannot be empty");
 		RETURN_THROWS();
 	}
 
@@ -1462,29 +1462,33 @@ PHPAPI zend_string *php_string_tolower(zend_string *s)
 	unsigned char *c;
 	const unsigned char *e;
 
-	c = (unsigned char *)ZSTR_VAL(s);
-	e = c + ZSTR_LEN(s);
+	if (EXPECTED(!BG(ctype_string))) {
+		return zend_string_tolower(s);
+	} else {
+		c = (unsigned char *)ZSTR_VAL(s);
+		e = c + ZSTR_LEN(s);
 
-	while (c < e) {
-		if (isupper(*c)) {
-			register unsigned char *r;
-			zend_string *res = zend_string_alloc(ZSTR_LEN(s), 0);
+		while (c < e) {
+			if (isupper(*c)) {
+				register unsigned char *r;
+				zend_string *res = zend_string_alloc(ZSTR_LEN(s), 0);
 
-			if (c != (unsigned char*)ZSTR_VAL(s)) {
-				memcpy(ZSTR_VAL(res), ZSTR_VAL(s), c - (unsigned char*)ZSTR_VAL(s));
+				if (c != (unsigned char*)ZSTR_VAL(s)) {
+					memcpy(ZSTR_VAL(res), ZSTR_VAL(s), c - (unsigned char*)ZSTR_VAL(s));
+				}
+				r = c + (ZSTR_VAL(res) - ZSTR_VAL(s));
+				while (c < e) {
+					*r = tolower(*c);
+					r++;
+					c++;
+				}
+				*r = '\0';
+				return res;
 			}
-			r = c + (ZSTR_VAL(res) - ZSTR_VAL(s));
-			while (c < e) {
-				*r = tolower(*c);
-				r++;
-				c++;
-			}
-			*r = '\0';
-			return res;
+			c++;
 		}
-		c++;
+		return zend_string_copy(s);
 	}
-	return zend_string_copy(s);
 }
 /* }}} */
 
@@ -1504,82 +1508,76 @@ PHP_FUNCTION(strtolower)
 
 /* {{{ php_basename
  */
-PHPAPI zend_string *php_basename(const char *s, size_t len, char *suffix, size_t sufflen)
+PHPAPI zend_string *php_basename(const char *s, size_t len, char *suffix, size_t suffix_len)
 {
-	char *c;
-	const char *comp, *cend;
-	size_t inc_len, cnt;
-	int state;
-	zend_string *ret;
-
-	comp = cend = c = (char*)s;
-	cnt = len;
-	state = 0;
-	while (cnt > 0) {
-		inc_len = (*c == '\0' ? 1 : php_mblen(c, cnt));
+	/* State 0 is directly after a directory separator (or at the start of the string).
+	 * State 1 is everything else. */
+	int state = 0;
+	const char *basename_start = s;
+	const char *basename_end = s;
+	while (len > 0) {
+		int inc_len = (*s == '\0' ? 1 : php_mblen(s, len));
 
 		switch (inc_len) {
-			case -2:
-			case -1:
-				inc_len = 1;
-				php_mb_reset();
-				break;
 			case 0:
 				goto quit_loop;
 			case 1:
 #if defined(PHP_WIN32)
-				if (*c == '/' || *c == '\\') {
+				if (*s == '/' || *s == '\\') {
 #else
-				if (*c == '/') {
+				if (*s == '/') {
 #endif
 					if (state == 1) {
 						state = 0;
-						cend = c;
+						basename_end = s;
 					}
 #if defined(PHP_WIN32)
 				/* Catch relative paths in c:file.txt style. They're not to confuse
 				   with the NTFS streams. This part ensures also, that no drive
 				   letter traversing happens. */
-				} else if ((*c == ':' && (c - comp == 1))) {
+				} else if ((*s == ':' && (s - basename_start == 1))) {
 					if (state == 0) {
-						comp = c;
+						basename_start = s;
 						state = 1;
 					} else {
-						cend = c;
+						basename_end = s;
 						state = 0;
 					}
 #endif
 				} else {
 					if (state == 0) {
-						comp = c;
+						basename_start = s;
 						state = 1;
 					}
 				}
 				break;
 			default:
+				if (inc_len < 0) {
+					/* If character is invalid, treat it like other non-significant characters. */
+					inc_len = 1;
+					php_mb_reset();
+				}
 				if (state == 0) {
-					comp = c;
+					basename_start = s;
 					state = 1;
 				}
 				break;
 		}
-		c += inc_len;
-		cnt -= inc_len;
+		s += inc_len;
+		len -= inc_len;
 	}
 
 quit_loop:
 	if (state == 1) {
-		cend = c;
-	}
-	if (suffix != NULL && sufflen < (size_t)(cend - comp) &&
-			memcmp(cend - sufflen, suffix, sufflen) == 0) {
-		cend -= sufflen;
+		basename_end = s;
 	}
 
-	len = cend - comp;
+	if (suffix != NULL && suffix_len < (size_t)(basename_end - basename_start) &&
+			memcmp(basename_end - suffix_len, suffix, suffix_len) == 0) {
+		basename_end -= suffix_len;
+	}
 
-	ret = zend_string_init(comp, len, 0);
-	return ret;
+	return zend_string_init(basename_start, basename_end - basename_start, 0);
 }
 /* }}} */
 
@@ -1863,6 +1861,46 @@ PHP_FUNCTION(str_contains)
 	ZEND_PARSE_PARAMETERS_END();
 
 	RETURN_BOOL(php_memnstr(ZSTR_VAL(haystack), ZSTR_VAL(needle), ZSTR_LEN(needle), ZSTR_VAL(haystack) + ZSTR_LEN(haystack)));
+}
+/* }}} */
+
+/* {{{ proto bool str_starts_with(string haystack, string needle)
+   Checks if haystack starts with needle */
+PHP_FUNCTION(str_starts_with)
+{
+	zend_string *haystack, *needle;
+
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_STR(haystack)
+		Z_PARAM_STR(needle)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (ZSTR_LEN(needle) > ZSTR_LEN(haystack)) {
+		RETURN_FALSE;
+	}
+
+	RETURN_BOOL(memcmp(ZSTR_VAL(haystack), ZSTR_VAL(needle), ZSTR_LEN(needle)) == 0);
+}
+/* }}} */
+
+/* {{{ proto bool str_ends_with(string haystack, string needle)
+   Checks if haystack ends with needle */
+PHP_FUNCTION(str_ends_with)
+{
+	zend_string *haystack, *needle;
+
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_STR(haystack)
+		Z_PARAM_STR(needle)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (ZSTR_LEN(needle) > ZSTR_LEN(haystack)) {
+		RETURN_FALSE;
+	}
+
+	RETURN_BOOL(memcmp(
+		ZSTR_VAL(haystack) + ZSTR_LEN(haystack) - ZSTR_LEN(needle),
+		ZSTR_VAL(needle), ZSTR_LEN(needle)) == 0);
 }
 /* }}} */
 
@@ -3673,9 +3711,12 @@ void php_stripslashes_default(zend_string *str);
 PHPAPI zend_string *php_addslashes(zend_string *str) __attribute__((ifunc("resolve_addslashes")));
 PHPAPI void php_stripslashes(zend_string *str) __attribute__((ifunc("resolve_stripslashes")));
 
+typedef zend_string *(*php_addslashes_func_t)(zend_string *);
+typedef void (*php_stripslashes_func_t)(zend_string *);
+
 ZEND_NO_SANITIZE_ADDRESS
 ZEND_ATTRIBUTE_UNUSED /* clang mistakenly warns about this */
-static void *resolve_addslashes() {
+static php_addslashes_func_t resolve_addslashes() {
 	if (zend_cpu_supports_sse42()) {
 		return php_addslashes_sse42;
 	}
@@ -3684,7 +3725,7 @@ static void *resolve_addslashes() {
 
 ZEND_NO_SANITIZE_ADDRESS
 ZEND_ATTRIBUTE_UNUSED /* clang mistakenly warns about this */
-static void *resolve_stripslashes() {
+static php_stripslashes_func_t resolve_stripslashes() {
 	if (zend_cpu_supports_sse42()) {
 		return php_stripslashes_sse42;
 	}
@@ -4757,16 +4798,21 @@ PHP_FUNCTION(setlocale)
 
 				BG(locale_changed) = 1;
 				if (cat == LC_CTYPE || cat == LC_ALL) {
-					if (BG(locale_string)) {
-						zend_string_release_ex(BG(locale_string), 0);
+					if (BG(ctype_string)) {
+						zend_string_release_ex(BG(ctype_string), 0);
 					}
-					if (len == ZSTR_LEN(loc) && !memcmp(ZSTR_VAL(loc), retval, len)) {
-						BG(locale_string) = zend_string_copy(loc);
-						RETURN_STR(BG(locale_string));
-					} else {
-						BG(locale_string) = zend_string_init(retval, len, 0);
+					if (len == 1 && *retval == 'C') {
+						/* C locale is represented as NULL. */
+						BG(ctype_string) = NULL;
 						zend_string_release_ex(loc, 0);
-						RETURN_STR_COPY(BG(locale_string));
+						RETURN_INTERNED_STR(ZSTR_CHAR('C'));
+					} else if (len == ZSTR_LEN(loc) && !memcmp(ZSTR_VAL(loc), retval, len)) {
+						BG(ctype_string) = zend_string_copy(loc);
+						RETURN_STR(BG(ctype_string));
+					} else {
+						BG(ctype_string) = zend_string_init(retval, len, 0);
+						zend_string_release_ex(loc, 0);
+						RETURN_STR_COPY(BG(ctype_string));
 					}
 				} else if (len == ZSTR_LEN(loc) && !memcmp(ZSTR_VAL(loc), retval, len)) {
 					RETURN_STR(loc);
@@ -5818,7 +5864,6 @@ PHP_FUNCTION(str_shuffle)
 }
 /* }}} */
 
-
 /* {{{ proto array|int str_word_count(string str, [int format [, string charlist]])
    	Counts the number of words inside a string. If format of 1 is specified,
    	then the function will return an array containing all the words
@@ -6087,7 +6132,6 @@ static zend_string *php_utf8_decode(const char *s, size_t len)
 	return str;
 }
 /* }}} */
-
 
 /* {{{ proto string utf8_encode(string data)
    Encodes an ISO-8859-1 string to UTF-8 */

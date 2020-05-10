@@ -245,8 +245,8 @@ ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_array_column, 0, 2, IS_ARRAY, 0)
 	ZEND_ARG_TYPE_INFO(0, arg, IS_ARRAY, 0)
-	ZEND_ARG_INFO(0, column_key)
-	ZEND_ARG_INFO_WITH_DEFAULT_VALUE(0, index_key, "null")
+	ZEND_ARG_TYPE_MASK(0, column_key, MAY_BE_LONG|MAY_BE_STRING|MAY_BE_NULL, NULL)
+	ZEND_ARG_TYPE_MASK(0, index_key, MAY_BE_LONG|MAY_BE_STRING|MAY_BE_NULL, "null")
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_array_reverse, 0, 1, IS_ARRAY, 0)
@@ -922,6 +922,10 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_str_contains, 0, 2, _IS_BOOL, 0)
 	ZEND_ARG_TYPE_INFO(0, haystack, IS_STRING, 0)
 	ZEND_ARG_TYPE_INFO(0, needle, IS_STRING, 0)
 ZEND_END_ARG_INFO()
+
+#define arginfo_str_starts_with arginfo_str_contains
+
+#define arginfo_str_ends_with arginfo_str_contains
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_chunk_split, 0, 1, IS_STRING, 0)
 	ZEND_ARG_TYPE_INFO(0, str, IS_STRING, 0)
@@ -2051,6 +2055,8 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_gettype, 0, 1, IS_STRING, 0)
 	ZEND_ARG_INFO(0, var)
 ZEND_END_ARG_INFO()
 
+#define arginfo_get_debug_type arginfo_gettype
+
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_settype, 0, 2, _IS_BOOL, 0)
 	ZEND_ARG_INFO(1, var)
 	ZEND_ARG_TYPE_INFO(0, type, IS_STRING, 0)
@@ -2090,8 +2096,6 @@ ZEND_END_ARG_INFO()
 #define arginfo_is_float arginfo_boolval
 
 #define arginfo_is_double arginfo_boolval
-
-#define arginfo_is_real arginfo_boolval
 
 #define arginfo_is_numeric arginfo_boolval
 
@@ -2213,8 +2217,8 @@ ZEND_END_ARG_INFO()
 
 #if defined(PHP_WIN32)
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_sapi_windows_cp_conv, 0, 3, IS_STRING, 1)
-	ZEND_ARG_INFO(0, in_codepage)
-	ZEND_ARG_INFO(0, out_codepage)
+	ZEND_ARG_TYPE_MASK(0, in_codepage, MAY_BE_LONG|MAY_BE_STRING, NULL)
+	ZEND_ARG_TYPE_MASK(0, out_codepage, MAY_BE_LONG|MAY_BE_STRING, NULL)
 	ZEND_ARG_TYPE_INFO(0, subject, IS_STRING, 0)
 ZEND_END_ARG_INFO()
 #endif
@@ -2496,6 +2500,8 @@ ZEND_FUNCTION(strrpos);
 ZEND_FUNCTION(strripos);
 ZEND_FUNCTION(strrchr);
 ZEND_FUNCTION(str_contains);
+ZEND_FUNCTION(str_starts_with);
+ZEND_FUNCTION(str_ends_with);
 ZEND_FUNCTION(chunk_split);
 ZEND_FUNCTION(substr);
 ZEND_FUNCTION(substr_replace);
@@ -2792,6 +2798,7 @@ ZEND_FUNCTION(stream_set_chunk_size);
 ZEND_FUNCTION(stream_set_timeout);
 #endif
 ZEND_FUNCTION(gettype);
+ZEND_FUNCTION(get_debug_type);
 ZEND_FUNCTION(settype);
 ZEND_FUNCTION(intval);
 ZEND_FUNCTION(floatval);
@@ -3128,6 +3135,8 @@ static const zend_function_entry ext_functions[] = {
 	ZEND_FE(strripos, arginfo_strripos)
 	ZEND_FE(strrchr, arginfo_strrchr)
 	ZEND_FE(str_contains, arginfo_str_contains)
+	ZEND_FE(str_starts_with, arginfo_str_starts_with)
+	ZEND_FE(str_ends_with, arginfo_str_ends_with)
 	ZEND_FE(chunk_split, arginfo_chunk_split)
 	ZEND_FE(substr, arginfo_substr)
 	ZEND_FE(substr_replace, arginfo_substr_replace)
@@ -3436,6 +3445,7 @@ static const zend_function_entry ext_functions[] = {
 	ZEND_FALIAS(socket_set_timeout, stream_set_timeout, arginfo_socket_set_timeout)
 #endif
 	ZEND_FE(gettype, arginfo_gettype)
+	ZEND_FE(get_debug_type, arginfo_get_debug_type)
 	ZEND_FE(settype, arginfo_settype)
 	ZEND_FE(intval, arginfo_intval)
 	ZEND_FE(floatval, arginfo_floatval)
@@ -3450,7 +3460,6 @@ static const zend_function_entry ext_functions[] = {
 	ZEND_FALIAS(is_long, is_int, arginfo_is_long)
 	ZEND_FE(is_float, arginfo_is_float)
 	ZEND_FALIAS(is_double, is_float, arginfo_is_double)
-	ZEND_FALIAS(is_real, is_float, arginfo_is_real)
 	ZEND_FE(is_numeric, arginfo_is_numeric)
 	ZEND_FE(is_string, arginfo_is_string)
 	ZEND_FE(is_array, arginfo_is_array)

@@ -993,7 +993,7 @@ static zval *zend_ffi_cdata_get(zend_object *obj, zend_string *member, int read_
 #endif
 
 	if (UNEXPECTED(!zend_string_equals_literal(member, "cdata"))) {
-		zend_throw_error(zend_ffi_exception_ce, "only 'cdata' property may be read");
+		zend_throw_error(zend_ffi_exception_ce, "Only 'cdata' property may be read");
 		return &EG(uninitialized_zval);;
 	}
 
@@ -2835,7 +2835,7 @@ ZEND_METHOD(FFI, cdef) /* {{{ */
 	ZEND_PARSE_PARAMETERS_START(0, 2)
 		Z_PARAM_OPTIONAL
 		Z_PARAM_STR(code)
-		Z_PARAM_STR(lib)
+		Z_PARAM_STR_OR_NULL(lib)
 	ZEND_PARSE_PARAMETERS_END();
 
 	if (lib) {
@@ -2854,7 +2854,7 @@ ZEND_METHOD(FFI, cdef) /* {{{ */
 	FFI_G(symbols) = NULL;
 	FFI_G(tags) = NULL;
 
-	if (code) {
+	if (code && ZSTR_LEN(code)) {
 		/* Parse C definitions */
 		FFI_G(default_type_attr) = ZEND_FFI_ATTR_STORED;
 
@@ -2869,7 +2869,7 @@ ZEND_METHOD(FFI, cdef) /* {{{ */
 				efree(FFI_G(tags));
 				FFI_G(tags) = NULL;
 			}
-			return;
+			RETURN_THROWS();
 		}
 
 		if (FFI_G(symbols)) {
@@ -2881,6 +2881,7 @@ ZEND_METHOD(FFI, cdef) /* {{{ */
 					addr = DL_FETCH_SYMBOL(handle, ZSTR_VAL(name));
 					if (!addr) {
 						zend_throw_error(zend_ffi_exception_ce, "Failed resolving C variable '%s'", ZSTR_VAL(name));
+						RETURN_THROWS();
 					}
 					sym->addr = addr;
 				} else if (sym->kind == ZEND_FFI_SYM_FUNC) {
@@ -2890,6 +2891,7 @@ ZEND_METHOD(FFI, cdef) /* {{{ */
 					zend_string_release(mangled_name);
 					if (!addr) {
 						zend_throw_error(zend_ffi_exception_ce, "Failed resolving C function '%s'", ZSTR_VAL(name));
+						RETURN_THROWS();
 					}
 					sym->addr = addr;
 				}

@@ -45,7 +45,7 @@ zend_module_entry bcmath_module_entry = {
 	PHP_BCMATH_VERSION,
 	PHP_MODULE_GLOBALS(bcmath),
 	PHP_GINIT(bcmath),
-    PHP_GSHUTDOWN(bcmath),
+	PHP_GSHUTDOWN(bcmath),
 	NULL,
 	STANDARD_MODULE_PROPERTIES_EX
 };
@@ -57,9 +57,25 @@ ZEND_TSRMLS_CACHE_DEFINE()
 ZEND_GET_MODULE(bcmath)
 #endif
 
+ZEND_INI_MH(OnUpdateScale)
+{
+	int *p;
+	zend_long tmp;
+
+	tmp = zend_atol(ZSTR_VAL(new_value), ZSTR_LEN(new_value));
+	if (tmp < 0 || tmp > INT_MAX) {
+		return FAILURE;
+	}
+
+	p = (int *) ZEND_INI_GET_ADDR();
+	*p = (int) tmp;
+
+	return SUCCESS;
+}
+
 /* {{{ PHP_INI */
 PHP_INI_BEGIN()
-	STD_PHP_INI_ENTRY("bcmath.scale", "0", PHP_INI_ALL, OnUpdateLongGEZero, bc_precision, zend_bcmath_globals, bcmath_globals)
+	STD_PHP_INI_ENTRY("bcmath.scale", "0", PHP_INI_ALL, OnUpdateScale, bc_precision, zend_bcmath_globals, bcmath_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -140,19 +156,25 @@ static void php_str2num(bc_num *num, char *str)
 PHP_FUNCTION(bcadd)
 {
 	zend_string *left, *right;
-	zend_long scale_param = 0;
+	zend_long scale_param;
+	zend_bool scale_param_is_null = 1;
 	bc_num first, second, result;
-	int scale = (int)BCG(bc_precision);
+	int scale;
 
 	ZEND_PARSE_PARAMETERS_START(2, 3)
 		Z_PARAM_STR(left)
 		Z_PARAM_STR(right)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(scale_param)
+		Z_PARAM_LONG_OR_NULL(scale_param, scale_param_is_null)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if (ZEND_NUM_ARGS() == 3) {
-		scale = (int) (scale_param < 0 ? 0 : scale_param);
+	if (scale_param_is_null) {
+		scale = BCG(bc_precision);
+	} else if (scale_param < 0 || scale_param > INT_MAX) {
+		zend_argument_value_error(3, "must be between 0 and %d", INT_MAX);
+		RETURN_THROWS();
+	} else {
+		scale = (int) scale_param;
 	}
 
 	bc_init_num(&first);
@@ -175,19 +197,25 @@ PHP_FUNCTION(bcadd)
 PHP_FUNCTION(bcsub)
 {
 	zend_string *left, *right;
-	zend_long scale_param = 0;
+	zend_long scale_param;
+	zend_bool scale_param_is_null = 1;
 	bc_num first, second, result;
-	int scale = (int)BCG(bc_precision);
+	int scale;
 
 	ZEND_PARSE_PARAMETERS_START(2, 3)
 		Z_PARAM_STR(left)
 		Z_PARAM_STR(right)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(scale_param)
+		Z_PARAM_LONG_OR_NULL(scale_param, scale_param_is_null)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if (ZEND_NUM_ARGS() == 3) {
-		scale = (int) ((int)scale_param < 0 ? 0 : scale_param);
+	if (scale_param_is_null) {
+		scale = BCG(bc_precision);
+	} else if (scale_param < 0 || scale_param > INT_MAX) {
+		zend_argument_value_error(3, "must be between 0 and %d", INT_MAX);
+		RETURN_THROWS();
+	} else {
+		scale = (int) scale_param;
 	}
 
 	bc_init_num(&first);
@@ -210,19 +238,25 @@ PHP_FUNCTION(bcsub)
 PHP_FUNCTION(bcmul)
 {
 	zend_string *left, *right;
-	zend_long scale_param = 0;
+	zend_long scale_param;
+	zend_bool scale_param_is_null = 1;
 	bc_num first, second, result;
-	int scale = (int)BCG(bc_precision);
+	int scale;
 
 	ZEND_PARSE_PARAMETERS_START(2, 3)
 		Z_PARAM_STR(left)
 		Z_PARAM_STR(right)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(scale_param)
+		Z_PARAM_LONG_OR_NULL(scale_param, scale_param_is_null)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if (ZEND_NUM_ARGS() == 3) {
-		scale = (int) ((int)scale_param < 0 ? 0 : scale_param);
+	if (scale_param_is_null) {
+		scale = BCG(bc_precision);
+	} else if (scale_param < 0 || scale_param > INT_MAX) {
+		zend_argument_value_error(3, "must be between 0 and %d", INT_MAX);
+		RETURN_THROWS();
+	} else {
+		scale = (int) scale_param;
 	}
 
 	bc_init_num(&first);
@@ -245,19 +279,25 @@ PHP_FUNCTION(bcmul)
 PHP_FUNCTION(bcdiv)
 {
 	zend_string *left, *right;
-	zend_long scale_param = 0;
+	zend_long scale_param;
+	zend_bool scale_param_is_null = 1;
 	bc_num first, second, result;
-	int scale = (int)BCG(bc_precision);
+	int scale = BCG(bc_precision);
 
 	ZEND_PARSE_PARAMETERS_START(2, 3)
 		Z_PARAM_STR(left)
 		Z_PARAM_STR(right)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(scale_param)
+		Z_PARAM_LONG_OR_NULL(scale_param, scale_param_is_null)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if (ZEND_NUM_ARGS() == 3) {
-		scale = (int) ((int)scale_param < 0 ? 0 : scale_param);
+	if (scale_param_is_null) {
+		scale = BCG(bc_precision);
+	} else if (scale_param < 0 || scale_param > INT_MAX) {
+		zend_argument_value_error(3, "must be between 0 and %d", INT_MAX);
+		RETURN_THROWS();
+	} else {
+		scale = (int) scale_param;
 	}
 
 	bc_init_num(&first);
@@ -287,19 +327,25 @@ PHP_FUNCTION(bcdiv)
 PHP_FUNCTION(bcmod)
 {
 	zend_string *left, *right;
-	zend_long scale_param = 0;
+	zend_long scale_param;
+	zend_bool scale_param_is_null = 1;
 	bc_num first, second, result;
-	int scale = (int)BCG(bc_precision);
+	int scale = BCG(bc_precision);
 
 	ZEND_PARSE_PARAMETERS_START(2, 3)
 		Z_PARAM_STR(left)
 		Z_PARAM_STR(right)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(scale_param)
+		Z_PARAM_LONG_OR_NULL(scale_param, scale_param_is_null)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if (ZEND_NUM_ARGS() == 3) {
-		scale = (int) ((int)scale_param < 0 ? 0 : scale_param);
+	if (scale_param_is_null) {
+		scale = BCG(bc_precision);
+	} else if (scale_param < 0 || scale_param > INT_MAX) {
+		zend_argument_value_error(3, "must be between 0 and %d", INT_MAX);
+		RETURN_THROWS();
+	} else {
+		scale = (int) scale_param;
 	}
 
 	bc_init_num(&first);
@@ -320,7 +366,6 @@ PHP_FUNCTION(bcmod)
 	bc_free_num(&first);
 	bc_free_num(&second);
 	bc_free_num(&result);
-	return;
 }
 /* }}} */
 
@@ -329,17 +374,27 @@ PHP_FUNCTION(bcmod)
 PHP_FUNCTION(bcpowmod)
 {
 	zend_string *left, *right, *modulus;
+	zend_long scale_param;
+	zend_bool scale_param_is_null = 1;
 	bc_num first, second, mod, result;
-	zend_long scale = BCG(bc_precision);
-	int scale_int;
+	int scale = BCG(bc_precision);
 
 	ZEND_PARSE_PARAMETERS_START(3, 4)
 		Z_PARAM_STR(left)
 		Z_PARAM_STR(right)
 		Z_PARAM_STR(modulus)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(scale)
+		Z_PARAM_LONG_OR_NULL(scale_param, scale_param_is_null)
 	ZEND_PARSE_PARAMETERS_END();
+
+	if (scale_param_is_null) {
+		scale = BCG(bc_precision);
+	} else if (scale_param < 0 || scale_param > INT_MAX) {
+		zend_argument_value_error(4, "must be between 0 and %d", INT_MAX);
+		RETURN_THROWS();
+	} else {
+		scale = (int) scale_param;
+	}
 
 	bc_init_num(&first);
 	bc_init_num(&second);
@@ -349,10 +404,8 @@ PHP_FUNCTION(bcpowmod)
 	php_str2num(&second, ZSTR_VAL(right));
 	php_str2num(&mod, ZSTR_VAL(modulus));
 
-	scale_int = (int) ((int)scale < 0 ? 0 : scale);
-
-	if (bc_raisemod(first, second, mod, &result, scale_int) != -1) {
-		RETVAL_STR(bc_num2str_ex(result, scale_int));
+	if (bc_raisemod(first, second, mod, &result, scale) != -1) {
+		RETVAL_STR(bc_num2str_ex(result, scale));
 	} else {
 		RETVAL_FALSE;
 	}
@@ -361,7 +414,6 @@ PHP_FUNCTION(bcpowmod)
 	bc_free_num(&second);
 	bc_free_num(&mod);
 	bc_free_num(&result);
-	return;
 }
 /* }}} */
 
@@ -370,19 +422,25 @@ PHP_FUNCTION(bcpowmod)
 PHP_FUNCTION(bcpow)
 {
 	zend_string *left, *right;
-	zend_long scale_param = 0;
+	zend_long scale_param;
+	zend_bool scale_param_is_null = 1;
 	bc_num first, second, result;
-	int scale = (int)BCG(bc_precision);
+	int scale = BCG(bc_precision);
 
 	ZEND_PARSE_PARAMETERS_START(2, 3)
 		Z_PARAM_STR(left)
 		Z_PARAM_STR(right)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(scale_param)
+		Z_PARAM_LONG_OR_NULL(scale_param, scale_param_is_null)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if (ZEND_NUM_ARGS() == 3) {
-		scale = (int) ((int)scale_param < 0 ? 0 : scale_param);
+	if (scale_param_is_null) {
+		scale = BCG(bc_precision);
+	} else if (scale_param < 0 || scale_param > INT_MAX) {
+		zend_argument_value_error(3, "must be between 0 and %d", INT_MAX);
+		RETURN_THROWS();
+	} else {
+		scale = (int) scale_param;
 	}
 
 	bc_init_num(&first);
@@ -396,7 +454,6 @@ PHP_FUNCTION(bcpow)
 	bc_free_num(&first);
 	bc_free_num(&second);
 	bc_free_num(&result);
-	return;
 }
 /* }}} */
 
@@ -405,18 +462,24 @@ PHP_FUNCTION(bcpow)
 PHP_FUNCTION(bcsqrt)
 {
 	zend_string *left;
-	zend_long scale_param = 0;
+	zend_long scale_param;
+	zend_bool scale_param_is_null = 1;
 	bc_num result;
-	int scale = (int)BCG(bc_precision);
+	int scale = BCG(bc_precision);
 
 	ZEND_PARSE_PARAMETERS_START(1, 2)
 		Z_PARAM_STR(left)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(scale_param)
+		Z_PARAM_LONG_OR_NULL(scale_param, scale_param_is_null)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if (ZEND_NUM_ARGS() == 2) {
-		scale = (int) ((int)scale_param < 0 ? 0 : scale_param);
+	if (scale_param_is_null) {
+		scale = BCG(bc_precision);
+	} else if (scale_param < 0 || scale_param > INT_MAX) {
+		zend_argument_value_error(2, "must be between 0 and %d", INT_MAX);
+		RETURN_THROWS();
+	} else {
+		scale = (int) scale_param;
 	}
 
 	bc_init_num(&result);
@@ -438,19 +501,25 @@ PHP_FUNCTION(bcsqrt)
 PHP_FUNCTION(bccomp)
 {
 	zend_string *left, *right;
-	zend_long scale_param = 0;
+	zend_long scale_param;
+	zend_bool scale_param_is_null = 1;
 	bc_num first, second;
-	int scale = (int)BCG(bc_precision);
+	int scale = BCG(bc_precision);
 
 	ZEND_PARSE_PARAMETERS_START(2, 3)
 		Z_PARAM_STR(left)
 		Z_PARAM_STR(right)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(scale_param)
+		Z_PARAM_LONG_OR_NULL(scale_param, scale_param_is_null)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if (ZEND_NUM_ARGS() == 3) {
-		scale = (int) ((int)scale_param < 0 ? 0 : scale_param);
+	if (scale_param_is_null) {
+		scale = BCG(bc_precision);
+	} else if (scale_param < 0 || scale_param > INT_MAX) {
+		zend_argument_value_error(3, "must be between 0 and %d", INT_MAX);
+		RETURN_THROWS();
+	} else {
+		scale = (int) scale_param;
 	}
 
 	bc_init_num(&first);
@@ -460,7 +529,7 @@ PHP_FUNCTION(bccomp)
 		php_error_docref(NULL, E_WARNING, "bcmath function argument is not well-formed");
 	}
 	if (!bc_str2num(&second, ZSTR_VAL(right), scale)) {
-	    php_error_docref(NULL, E_WARNING, "bcmath function argument is not well-formed");
+		php_error_docref(NULL, E_WARNING, "bcmath function argument is not well-formed");
 	}
 	RETVAL_LONG(bc_compare(first, second));
 
@@ -475,16 +544,22 @@ PHP_FUNCTION(bccomp)
 PHP_FUNCTION(bcscale)
 {
 	zend_long old_scale, new_scale;
+	zend_bool new_scale_is_null = 1;
 
 	ZEND_PARSE_PARAMETERS_START(0, 1)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(new_scale)
+		Z_PARAM_LONG_OR_NULL(new_scale, new_scale_is_null)
 	ZEND_PARSE_PARAMETERS_END();
 
 	old_scale = BCG(bc_precision);
 
-	if (ZEND_NUM_ARGS() == 1) {
-		BCG(bc_precision) = ((int)new_scale < 0) ? 0 : new_scale;
+	if (!new_scale_is_null) {
+		if (new_scale < 0 || new_scale > INT_MAX) {
+			zend_argument_value_error(1, "must be between 0 and %d", INT_MAX);
+			RETURN_THROWS();
+		}
+
+		BCG(bc_precision) = (int) new_scale;
 	}
 
 	RETURN_LONG(old_scale);

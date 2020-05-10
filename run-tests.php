@@ -2492,12 +2492,9 @@ COMMAND $cmd
             save_text($test_clean, trim($section_text['CLEAN']), $temp_clean);
 
             if (!$no_clean) {
-                $clean_params = array();
-                settings2array($ini_overwrites, $clean_params);
-                $clean_params = settings2params($clean_params);
                 $extra = !IS_WINDOWS ?
                     "unset REQUEST_METHOD; unset QUERY_STRING; unset PATH_TRANSLATED; unset SCRIPT_FILENAME; unset REQUEST_METHOD;" : "";
-                system_with_timeout("$extra $php $pass_options $extra_options -q $clean_params $no_file_cache \"$test_clean\"", $env);
+                system_with_timeout("$extra $php $pass_options $extra_options -q $orig_ini_settings $no_file_cache \"$test_clean\"", $env);
             }
 
             if (!$cfg['keep']['clean']) {
@@ -2748,10 +2745,25 @@ COMMAND $cmd
         }
 
         // write .sh
-        if (strpos($log_format, 'S') !== false && file_put_contents($sh_filename, "#!/bin/sh
+        $sh_script = <<<SH
+#!/bin/sh
 
-{$cmd}
-", FILE_BINARY) === false) {
+case "$1" in
+"gdb")
+    gdb --args {$cmd}
+    ;;
+"valgrind")
+    USE_ZEND_ALLOC=0 valgrind $2 ${cmd}
+    ;;
+"rr")
+    rr record $2 ${cmd}
+    ;;
+*)
+    {$cmd}
+    ;;
+esac
+SH;
+        if (strpos($log_format, 'S') !== false && file_put_contents($sh_filename, $sh_script, FILE_BINARY) === false) {
             error("Cannot create test shell script - $sh_filename");
         }
         chmod($sh_filename, 0755);

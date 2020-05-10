@@ -276,7 +276,7 @@ typedef struct _zend_oparray_context {
 /* Whether this class was used in its unlinked state.     |     |     |     */
 #define ZEND_ACC_HAS_UNLINKED_USES       (1 << 23) /*  X  |     |     |     */
 /*                                                        |     |     |     */
-/* Function Flags (unused: 17, 23, 26)                    |     |     |     */
+/* Function Flags (unused: 17, 23, 26, 29)                |     |     |     */
 /* ==============                                         |     |     |     */
 /*                                                        |     |     |     */
 /* deprecation flag                                       |     |     |     */
@@ -328,9 +328,6 @@ typedef struct _zend_oparray_context {
 /*                                                        |     |     |     */
 /* functions is a constructor                             |     |     |     */
 #define ZEND_ACC_CTOR                    (1 << 28) /*     |  X  |     |     */
-/*                                                        |     |     |     */
-/* function is a destructor                               |     |     |     */
-#define ZEND_ACC_DTOR                    (1 << 29) /*     |  X  |     |     */
 /*                                                        |     |     |     */
 /* closure uses $this                                     |     |     |     */
 #define ZEND_ACC_USES_THIS               (1 << 30) /*     |  X  |     |     */
@@ -933,6 +930,8 @@ ZEND_API zend_string *zend_type_to_string(zend_type type);
 #define ZEND_SEND_BY_VAL     0u
 #define ZEND_SEND_BY_REF     1u
 #define ZEND_SEND_PREFER_REF 2u
+
+#define ZEND_THROW_IS_EXPR 1u
 
 /* The send mode and is_variadic flag are stored as part of zend_type */
 #define _ZEND_SEND_MODE_SHIFT _ZEND_TYPE_EXTRA_FLAGS_SHIFT

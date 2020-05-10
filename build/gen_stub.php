@@ -443,6 +443,13 @@ class FuncInfo {
                 );
             }
         } else {
+            if ($this->alias && $this->isDeprecated) {
+                return sprintf(
+                    "\tZEND_DEP_FALIAS(%s, %s, %s)\n",
+                    $this->name, $this->alias->name, $this->getArgInfoName()
+                );
+            }
+
             if ($this->alias) {
                 return sprintf(
                     "\tZEND_FALIAS(%s, %s, %s)\n",
@@ -997,16 +1004,26 @@ function generateFunctionEntries(?string $className, array $funcInfos): string {
     return $code;
 }
 
-function initPhpParser() {
-    $version = "4.3.0";
-    $phpParserDir = __DIR__ . "/PHP-Parser-$version";
-    if (!is_dir($phpParserDir)) {
+function installPhpParser(string $version, string $phpParserDir) {
+    $lockFile = __DIR__ . "/PHP-Parser-install-lock";
+    $lockFd = fopen($lockFile, 'w+');
+    if (!flock($lockFd, LOCK_EX)) {
+        throw new Exception("Failed to acquire installation lock");
+    }
+
+    try {
+        // Check whether a parallel process has already installed PHP-Parser.
+        if (is_dir($phpParserDir)) {
+            return;
+        }
+
         $cwd = getcwd();
         chdir(__DIR__);
 
-        passthru("wget https://github.com/nikic/PHP-Parser/archive/v$version.tar.gz", $exit);
+        $tarName = "v$version.tar.gz";
+        passthru("wget https://github.com/nikic/PHP-Parser/archive/$tarName", $exit);
         if ($exit !== 0) {
-            passthru("curl -LO https://github.com/nikic/PHP-Parser/archive/v$version.tar.gz", $exit);
+            passthru("curl -LO https://github.com/nikic/PHP-Parser/archive/$tarName", $exit);
         }
         if ($exit !== 0) {
             throw new Exception("Failed to download PHP-Parser tarball");
@@ -1014,12 +1031,23 @@ function initPhpParser() {
         if (!mkdir($phpParserDir)) {
             throw new Exception("Failed to create directory $phpParserDir");
         }
-        passthru("tar xvzf v$version.tar.gz -C PHP-Parser-$version --strip-components 1", $exit);
+        passthru("tar xvzf $tarName -C PHP-Parser-$version --strip-components 1", $exit);
         if ($exit !== 0) {
             throw new Exception("Failed to extract PHP-Parser tarball");
         }
-        unlink(__DIR__ . "/v$version.tar.gz");
+        unlink(__DIR__ . "/$tarName");
         chdir($cwd);
+    } finally {
+        flock($lockFd, LOCK_UN);
+        @unlink($lockFile);
+    }
+}
+
+function initPhpParser() {
+    $version = "4.3.0";
+    $phpParserDir = __DIR__ . "/PHP-Parser-$version";
+    if (!is_dir($phpParserDir)) {
+        installPhpParser($version, $phpParserDir);
     }
 
     spl_autoload_register(function(string $class) use($phpParserDir) {

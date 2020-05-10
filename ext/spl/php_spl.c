@@ -310,10 +310,14 @@ PHP_FUNCTION(spl_autoload)
 {
 	int pos_len, pos1_len;
 	char *pos, *pos1;
-	zend_string *class_name, *lc_name, *file_exts = SPL_G(autoload_extensions);
+	zend_string *class_name, *lc_name, *file_exts = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S|S", &class_name, &file_exts) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S|S!", &class_name, &file_exts) == FAILURE) {
 		RETURN_THROWS();
+	}
+
+	if (!file_exts) {
+		file_exts = SPL_G(autoload_extensions);
 	}
 
 	if (file_exts == NULL) { /* autoload_extensions is not initialized, set to defaults */
@@ -347,9 +351,10 @@ PHP_FUNCTION(spl_autoload_extensions)
 {
 	zend_string *file_exts = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|S", &file_exts) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|S!", &file_exts) == FAILURE) {
 		RETURN_THROWS();
 	}
+
 	if (file_exts) {
 		if (SPL_G(autoload_extensions)) {
 			zend_string_release_ex(SPL_G(autoload_extensions), 0);
@@ -393,13 +398,15 @@ static void autoload_func_info_dtor(zval *element)
  Try all registered autoload function to load the requested class */
 PHP_FUNCTION(spl_autoload_call)
 {
-	zval *class_name, retval;
-	zend_string *lc_name, *func_name;
+	zend_string *class_name, *lc_name, *func_name;
 	autoload_func_info *alfi;
+	zval retval, params[1];
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &class_name) == FAILURE || Z_TYPE_P(class_name) != IS_STRING) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S", &class_name) == FAILURE) {
 		RETURN_THROWS();
 	}
+
+	ZVAL_STR(&params[0], class_name);
 
 	if (SPL_G(autoload_functions)) {
 		HashPosition pos;
@@ -411,12 +418,12 @@ PHP_FUNCTION(spl_autoload_call)
 		int l_autoload_running = SPL_G(autoload_running);
 
 		SPL_G(autoload_running) = 1;
-		lc_name = zend_string_tolower(Z_STR_P(class_name));
+		lc_name = zend_string_tolower(class_name);
 
 		fci.size = sizeof(fci);
 		fci.retval = &retval;
 		fci.param_count = 1;
-		fci.params = class_name;
+		fci.params = params;
 		fci.no_separation = 1;
 
 		ZVAL_UNDEF(&fci.function_name); /* Unused */
@@ -474,7 +481,7 @@ PHP_FUNCTION(spl_autoload_call)
 		ZVAL_UNDEF(&fcall_info.function_name);
 		fcall_info.retval = &retval;
 		fcall_info.param_count = 1;
-		fcall_info.params = class_name;
+		fcall_info.params = params;
 		fcall_info.object = NULL;
 		fcall_info.no_separation = 1;
 
@@ -511,11 +518,11 @@ PHP_FUNCTION(spl_autoload_register)
 	zend_object *obj_ptr;
 	zend_fcall_info_cache fcc;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|zbb", &zcallable, &do_throw, &prepend) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|z!bb", &zcallable, &do_throw, &prepend) == FAILURE) {
 		RETURN_THROWS();
 	}
 
-	if (ZEND_NUM_ARGS()) {
+	if (zcallable) {
 		if (!zend_is_callable_ex(zcallable, NULL, 0, &func_name, &fcc, &error)) {
 			alfi.ce = fcc.calling_scope;
 			alfi.func_ptr = fcc.function_handler;
@@ -893,28 +900,6 @@ PHP_MINFO_FUNCTION(spl)
 }
 /* }}} */
 
-/* {{{ spl_functions
- */
-static const zend_function_entry spl_functions[] = {
-	PHP_FE(spl_classes,             arginfo_spl_classes)
-	PHP_FE(spl_autoload,            arginfo_spl_autoload)
-	PHP_FE(spl_autoload_extensions, arginfo_spl_autoload_extensions)
-	PHP_FE(spl_autoload_register,   arginfo_spl_autoload_register)
-	PHP_FE(spl_autoload_unregister, arginfo_spl_autoload_unregister)
-	PHP_FE(spl_autoload_functions,  arginfo_spl_autoload_functions)
-	PHP_FE(spl_autoload_call,       arginfo_spl_autoload_call)
-	PHP_FE(class_parents,           arginfo_class_parents)
-	PHP_FE(class_implements,        arginfo_class_implements)
-	PHP_FE(class_uses,              arginfo_class_uses)
-	PHP_FE(spl_object_hash,         arginfo_spl_object_hash)
-	PHP_FE(spl_object_id,           arginfo_spl_object_id)
-	PHP_FE(iterator_to_array,       arginfo_iterator_to_array)
-	PHP_FE(iterator_count,          arginfo_iterator_count)
-	PHP_FE(iterator_apply,          arginfo_iterator_apply)
-	PHP_FE_END
-};
-/* }}} */
-
 /* {{{ PHP_MINIT_FUNCTION(spl)
  */
 PHP_MINIT_FUNCTION(spl)
@@ -966,7 +951,7 @@ PHP_RSHUTDOWN_FUNCTION(spl) /* {{{ */
 zend_module_entry spl_module_entry = {
 	STANDARD_MODULE_HEADER,
 	"SPL",
-	spl_functions,
+	ext_functions,
 	PHP_MINIT(spl),
 	NULL,
 	PHP_RINIT(spl),

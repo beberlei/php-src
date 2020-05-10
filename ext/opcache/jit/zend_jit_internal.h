@@ -223,6 +223,7 @@ typedef enum _zend_jit_trace_stop {
 
 #define ZEND_JIT_EXIT_JITED         (1<<0)
 #define ZEND_JIT_EXIT_BLACKLISTED   (1<<1)
+#define ZEND_JIT_EXIT_TO_VM         (1<<2) /* exit to VM without attempt to create a side trace */
 
 typedef union _zend_op_trace_info {
 	zend_op dummy; /* the size of this structure must be the same as zend_op */
@@ -258,6 +259,7 @@ typedef enum _zend_jit_trace_op {
 
 #define IS_UNKNOWN 255 /* may be used for zend_jit_trace_rec.op?_type */
 #define IS_TRACE_REFERENCE (1<<5)
+#define IS_TRACE_INDIRECT  (1<<6)
 
 typedef struct _zend_jit_trace_rec {
 	uint8_t   op;    /* zend_jit_trace_op */
@@ -269,9 +271,8 @@ typedef struct _zend_jit_trace_rec {
 		};
 		struct {
 			union {
-				uint8_t   recursive; /* part of recursive return sequence for ZEND_JIT_TRACE_BACK */
 				int8_t    return_value_used; /* for ZEND_JIT_TRACE_ENTER */
-				uint8_t   fake; /* for ZEND_JIT_TRACE_INIT_FCALL */
+				uint8_t   fake; /* for ZEND_JIT_TRACE_INIT_CALL */
 			};
 			uint8_t first_ssa_var; /* may be used for ZEND_JIT_TRACE_ENTER and ZEND_JIT_TRACE_BACK */
 		};
@@ -302,9 +303,11 @@ typedef struct _zend_jit_trace_start_rec {
 #define ZEND_JIT_TRACE_START_REC_SIZE 2
 
 typedef struct _zend_jit_trace_exit_info {
-	const zend_op *opline;     /* opline where VM should continue execution */
-	uint32_t       stack_size;
-	uint32_t       stack_offset;
+	const zend_op       *opline;     /* opline where VM should continue execution */
+	const zend_op_array *op_array;
+	uint32_t             flags;      /* set of ZEND_JIT_EXIT_... */
+	uint32_t             stack_size;
+	uint32_t             stack_offset;
 } zend_jit_trace_exit_info;
 
 typedef union _zend_jit_trace_stack {
@@ -350,6 +353,7 @@ typedef struct _zend_jit_trace_info {
 	uint32_t                  code_size;     /* size of native code */
 	uint32_t                  exit_counters; /* offset in exit counters array */
 	uint32_t                  stack_map_size;
+	const zend_op            *opline;        /* first opline */
 	const void               *code_start;    /* address of native code */
 	zend_jit_trace_exit_info *exit_info;     /* info about side exits */
 	zend_jit_trace_stack     *stack_map;
@@ -362,6 +366,7 @@ struct _zend_jit_trace_stack_frame {
 	zend_jit_trace_stack_frame *call;
 	zend_jit_trace_stack_frame *prev;
 	const zend_function        *func;
+	uint32_t                    call_level;
 	uint32_t                    _info;
 	zend_jit_trace_stack        stack[1];
 };
@@ -376,17 +381,17 @@ struct _zend_jit_trace_stack_frame {
 #define TRACE_FRAME_MASK_RETURN_VALUE_USED   0x00000008
 #define TRACE_FRAME_MASK_RETURN_VALUE_UNUSED 0x00000010
 #define TRACE_FRAME_MASK_THIS_CHECKED        0x00000020
+#define TRACE_FRAME_MASK_UNKNOWN_RETURN      0x00000040
 
 
-#define TRACE_FRAME_INIT(frame, _func, nested, num_args) do { \
+#define TRACE_FRAME_INIT(frame, _func, _flags, num_args) do { \
 		zend_jit_trace_stack_frame *_frame = (frame); \
 		_frame->call = NULL; \
 		_frame->prev = NULL; \
 		_frame->func = (const zend_function*)_func; \
+		_frame->call_level = 0; \
 		_frame->_info = (((uint32_t)(num_args)) << TRACE_FRAME_SHIFT_NUM_ARGS) & TRACE_FRAME_MASK_NUM_ARGS; \
-		if (nested) { \
-			_frame->_info |= TRACE_FRAME_MASK_NESTED; \
-		}; \
+		_frame->_info |= _flags; \
 	} while (0)
 
 #define TRACE_FRAME_RETURN_SSA_VAR(frame) \
@@ -405,6 +410,8 @@ struct _zend_jit_trace_stack_frame {
 	((frame)->_info & TRACE_FRAME_MASK_RETURN_VALUE_UNUSED)
 #define TRACE_FRAME_IS_THIS_CHECKED(frame) \
 	((frame)->_info & TRACE_FRAME_MASK_THIS_CHECKED)
+#define TRACE_FRAME_IS_UNKNOWN_RETURN(frame) \
+	((frame)->_info & TRACE_FRAME_MASK_UNKNOWN_RETURN)
 
 #define TRACE_FRAME_SET_RETURN_SSA_VAR(frame, var) do { \
 		(frame)->_info = var; \
@@ -430,6 +437,7 @@ struct _zend_jit_trace_stack_frame {
 	} while (0)
 
 typedef struct _zend_jit_globals {
+	zend_jit_trace_rec *current_trace;
 	zend_jit_trace_stack_frame *current_frame;
 
 	const zend_op *bad_root_cache_opline[ZEND_JIT_TRACE_BAD_ROOT_SLOTS];

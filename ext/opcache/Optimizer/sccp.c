@@ -955,6 +955,8 @@ static inline int ct_eval_func_call(
 			/* pass */
 		} else if (zend_string_equals_literal(name, "strpos")
 				|| zend_string_equals_literal(name, "str_contains")
+				|| zend_string_equals_literal(name, "str_starts_with")
+				|| zend_string_equals_literal(name, "str_ends_with")
 				|| zend_string_equals_literal(name, "version_compare")) {
 			if (Z_TYPE_P(args[0]) != IS_STRING
 					|| Z_TYPE_P(args[1]) != IS_STRING) {
@@ -1019,8 +1021,7 @@ static inline int ct_eval_func_call(
 	}
 
 	func = zend_hash_find_ptr(CG(function_table), name);
-	if (!func || func->type != ZEND_INTERNAL_FUNCTION
-			|| func->internal_function.handler == ZEND_FN(display_disabled_function)) {
+	if (!func || func->type != ZEND_INTERNAL_FUNCTION) {
 		return FAILURE;
 	}
 

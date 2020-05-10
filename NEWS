@@ -20,6 +20,14 @@ PHP                                                                        NEWS
     (cmb)
   . Fixed bug #79368 ("Unexpected end of file" is not an acceptable error
     message). (Alex Dowad)
+  . Fixed bug #36365 (scandir duplicates file name at every 65535th file).
+    (cmb)
+  . Use SSE2 instructions do locale independent strtolower. (Laruence)
+  . Fixed bug #79521 (Check __set_state structure). (carusogabriel)
+  . Fixed bug #79467 (data:// wrappers are writable). (cmb)
+
+- BZ2:
+  . Fixed bug #71263 (fread() does not report bzip2.decompress errors). (cmb)
 
 - CURL:
   . Bumped required libcurl version to 7.29.0. (cmb)
@@ -32,6 +40,13 @@ PHP                                                                        NEWS
 - DOM:
   . Add property DOMXPath::$registerNodeNamespaces and constructor argument
     that allow global flag to configure query() or evaluate() calls.
+
+- Enchant:
+  . Add LIBENCHANT_VERSION macro
+  . Deprecate enchant_broker_set_dict_path, enchant_broker_get_dict_path
+    enchant_dict_add_to_personal and enchant_dict_is_in_session
+  . Add enchant_dict_add and enchant_dict_is_added functions
+  . Use libenchant-2 when available
 
 - FPM:
   . Fixed bug #64865 (Search for .user.ini files from script dir up to
@@ -78,6 +93,7 @@ PHP                                                                        NEWS
   . Don't ignore invalid escape sequences. (sjon)
 
 - PDO:
+  . Changed default PDO error mode to exceptions. (AllenJB)
   . Fixed bug #77849 (Disable cloning of PDO handle/connection objects).
     (camporter)
 
@@ -164,5 +180,8 @@ PHP                                                                        NEWS
   . Add ZipArchive::EM_UNKNOWN and ZipArchive::EM_TRAD_PKWARE constants. (Remi)
   . Add ZipArchive::isCompressionMethodSupported() and
     ZipArchive::isEncryptionMethodSupported() method (libzip 1.7.0). (Remi)
+
+- Zlib:
+  . Fixed bug #71417 (fread() does not report zlib.inflate errors). (cmb)
 
 <<< NOTE: Insert NEWS from last stable release here prior to actual release! >>>

@@ -176,11 +176,7 @@ function array_values(array $arg): array {}
 
 function array_count_values(array $arg): array {}
 
-/**
- * @param int|string|null $column_key
- * @param int|string|null $index_key
- */
-function array_column(array $arg, $column_key, $index_key = null): array {}
+function array_column(array $arg, int|string|null $column_key, int|string|null $index_key = null): array {}
 
 function array_reverse(array $input, bool $preserve_keys = false): array {}
 
@@ -607,6 +603,10 @@ function strripos(string $haystack, string $needle, int $offset = 0): int|false 
 function strrchr(string $haystack, string $needle): string|false {}
 
 function str_contains(string $haystack, string $needle): bool {}
+
+function str_starts_with(string $haystack, string $needle): bool {}
+
+function str_ends_with(string $haystack, string $needle): bool {}
 
 function chunk_split(string $str, int $chunklen = 76, string $ending = "\r\n"): string {}
 
@@ -1382,6 +1382,9 @@ function socket_set_timeout($socket, int $seconds, int $microseconds = 0): bool 
 /** @param mixed $var */
 function gettype($var): string {}
 
+/** @param mixed $var */
+function get_debug_type($var): string {}
+
 function settype(&$var, string $type): bool {}
 
 /** @param mixed $value */
@@ -1434,13 +1437,6 @@ function is_float($value): bool {}
  * @alias is_float
  */
 function is_double($value): bool {}
-
-/**
- * @param mixed $value
- * @alias is_float
- * @deprecated
- */
-function is_real($value): bool {}
 
 /** @param mixed $value */
 function is_numeric($value): bool {}
@@ -1542,11 +1538,7 @@ function sapi_windows_cp_set(int $cp): bool {}
 
 function sapi_windows_cp_get(string $kind = UNKNOWN): int {}
 
-/**
- * @param int|string $in_codepage
- * @param int|string $out_codepage
- */
-function sapi_windows_cp_conv($in_codepage, $out_codepage, string $subject): ?string {}
+function sapi_windows_cp_conv(int|string $in_codepage, int|string $out_codepage, string $subject): ?string {}
 
 function sapi_windows_cp_is_utf8(): bool {}
 

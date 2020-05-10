@@ -3436,16 +3436,13 @@ static zend_always_inline int _zend_update_type_info(
 				if (!call_info) {
 					goto unknown_opcode;
 				}
-				tmp = zend_get_func_info(call_info, ssa);
+
+				zend_class_entry *ce;
+				zend_bool ce_is_instanceof;
+				tmp = zend_get_func_info(call_info, ssa, &ce, &ce_is_instanceof);
 				UPDATE_SSA_TYPE(tmp, ssa_op->result_def);
-				if (call_info->callee_func->type == ZEND_USER_FUNCTION) {
-					func_info = ZEND_FUNC_INFO(&call_info->callee_func->op_array);
-					if (func_info) {
-						UPDATE_SSA_OBJ_TYPE(
-							func_info->return_info.ce,
-							func_info->return_info.is_instanceof,
-							ssa_op->result_def);
-					}
+				if (ce) {
+					UPDATE_SSA_OBJ_TYPE(ce, ce_is_instanceof, ssa_op->result_def);
 				}
 			}
 			break;
@@ -3465,7 +3462,7 @@ static zend_always_inline int _zend_update_type_info(
 			UPDATE_SSA_TYPE(MAY_BE_LONG, ssa_op->result_def);
 			break;
 		case ZEND_FUNC_GET_ARGS:
-			UPDATE_SSA_TYPE(MAY_BE_RC1| MAY_BE_ARRAY | MAY_BE_ARRAY_KEY_LONG | MAY_BE_ARRAY_OF_ANY, ssa_op->result_def);
+			UPDATE_SSA_TYPE(MAY_BE_RC1|MAY_BE_RCN| MAY_BE_ARRAY | MAY_BE_ARRAY_KEY_LONG | MAY_BE_ARRAY_OF_ANY, ssa_op->result_def);
 			break;
 		case ZEND_GET_CLASS:
 		case ZEND_GET_CALLED_CLASS:
@@ -4357,8 +4354,8 @@ int zend_may_throw(const zend_op *opline, const zend_ssa_op *ssa_op, const zend_
 			 && (t2 & MAY_BE_ANY) == MAY_BE_ARRAY) {
 				return 0;
 			}
-			return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT)) ||
-				(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT));
+			return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE)) ||
+				(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE));
 		case ZEND_DIV:
 		case ZEND_MOD:
 			if (!OP2_HAS_RANGE() ||
@@ -4370,12 +4367,12 @@ int zend_may_throw(const zend_op *opline, const zend_ssa_op *ssa_op, const zend_
 		case ZEND_SUB:
 		case ZEND_MUL:
 		case ZEND_POW:
-			return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT)) ||
-				(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT));
+			return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE)) ||
+				(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE));
 		case ZEND_SL:
 		case ZEND_SR:
-			return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT)) ||
-				(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT)) ||
+			return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE)) ||
+				(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE)) ||
 				!OP2_HAS_RANGE() ||
 				OP2_MIN_RANGE() < 0;
 		case ZEND_CONCAT:
@@ -4389,15 +4386,16 @@ int zend_may_throw(const zend_op *opline, const zend_ssa_op *ssa_op, const zend_
 			 && (t2 & MAY_BE_ANY) == MAY_BE_STRING) {
 				return 0;
 			}
-			return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT)) ||
-				(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT));
+			return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE)) ||
+				(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE));
 		case ZEND_BW_NOT:
 			return (t1 & (MAY_BE_NULL|MAY_BE_FALSE|MAY_BE_TRUE|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE));
-		case ZEND_BOOL_NOT:
 		case ZEND_PRE_INC:
 		case ZEND_POST_INC:
 		case ZEND_PRE_DEC:
 		case ZEND_POST_DEC:
+			return (t1 & (MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE));
+		case ZEND_BOOL_NOT:
 		case ZEND_JMPZ:
 		case ZEND_JMPNZ:
 		case ZEND_JMPZNZ:
@@ -4425,8 +4423,8 @@ int zend_may_throw(const zend_op *opline, const zend_ssa_op *ssa_op, const zend_
 				 && (t2 & MAY_BE_ANY) == MAY_BE_ARRAY) {
 					return 0;
 				}
-				return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT)) ||
-					(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT));
+				return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE)) ||
+					(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE));
 			} else if (opline->extended_value == ZEND_DIV ||
 				opline->extended_value == ZEND_MOD) {
 				if (!OP2_HAS_RANGE() ||
@@ -4434,17 +4432,17 @@ int zend_may_throw(const zend_op *opline, const zend_ssa_op *ssa_op, const zend_
 					/* Division by zero */
 					return 1;
 				}
-				return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT)) ||
-					(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT));
+				return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE)) ||
+					(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE));
 			} else if (opline->extended_value == ZEND_SUB ||
 				opline->extended_value == ZEND_MUL ||
 				opline->extended_value == ZEND_POW) {
-				return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT)) ||
-					(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT));
+				return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE)) ||
+					(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE));
 			} else if (opline->extended_value == ZEND_SL ||
 				opline->extended_value == ZEND_SR) {
-				return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT)) ||
-					(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT)) ||
+				return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE)) ||
+					(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE)) ||
 					!OP2_HAS_RANGE() ||
 					OP2_MIN_RANGE() < 0;
 			} else if (opline->extended_value == ZEND_CONCAT) {
@@ -4457,8 +4455,8 @@ int zend_may_throw(const zend_op *opline, const zend_ssa_op *ssa_op, const zend_
 				 && (t2 & MAY_BE_ANY) == MAY_BE_STRING) {
 					return 0;
 				}
-				return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT)) ||
-					(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT));
+				return (t1 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE)) ||
+					(t2 & (MAY_BE_STRING|MAY_BE_ARRAY|MAY_BE_OBJECT|MAY_BE_RESOURCE));
 			}
 			return 1;
 		case ZEND_ASSIGN:

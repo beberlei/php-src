@@ -47,7 +47,7 @@ int le_deflate;
 int le_inflate;
 #define le_inflate_name "zlib inflate"
 
-ZEND_DECLARE_MODULE_GLOBALS(zlib);
+ZEND_DECLARE_MODULE_GLOBALS(zlib)
 
 /* {{{ Memory management wrappers */
 
@@ -1250,15 +1250,6 @@ static PHP_INI_MH(OnUpdate_zlib_output_compression)
 {
 	int int_value;
 	char *ini_value;
-	zend_long *p;
-#ifndef ZTS
-	char *base = (char *) mh_arg2;
-#else
-	char *base;
-
-	base = (char *) ts_resource(*((int *) mh_arg2));
-#endif
-
 	if (new_value == NULL) {
 		return FAILURE;
 	}
@@ -1284,7 +1275,7 @@ static PHP_INI_MH(OnUpdate_zlib_output_compression)
 		}
 	}
 
-	p = (zend_long *) (base+(size_t) mh_arg1);
+	zend_long *p = (zend_long *) ZEND_INI_GET_ADDR();
 	*p = int_value;
 
 	ZLIBG(output_compression) = ZLIBG(output_compression_default);

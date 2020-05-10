@@ -70,7 +70,7 @@ zend_jit_globals jit_globals;
     } \
   } while(0)
 
-#define DASM_M_FREE(ctx, p, sz)	efree(p)
+#define DASM_M_FREE(ctx, p, sz) efree(p)
 
 #include "dynasm/dasm_proto.h"
 
@@ -113,7 +113,7 @@ static int zend_may_overflow(const zend_op *opline, const zend_op_array *op_arra
 static void ZEND_FASTCALL zend_runtime_jit(void);
 
 static int zend_jit_trace_may_exit(const zend_op_array *op_array, const zend_op *opline, zend_jit_trace_rec *trace);
-static uint32_t zend_jit_trace_get_exit_point(const zend_op *from_opline, const zend_op *to_opline, zend_jit_trace_rec *trace);
+static uint32_t zend_jit_trace_get_exit_point(const zend_op *from_opline, const zend_op *to_opline, zend_jit_trace_rec *trace, uint32_t flags);
 static const void *zend_jit_trace_get_exit_addr(uint32_t n);
 static void zend_jit_trace_add_code(const void *start, uint32_t size);
 
@@ -245,7 +245,7 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
                                   const zend_op           *rt_opline,
                                   zend_lifetime_interval **ra,
                                   const char              *name,
-                                  zend_bool                is_trace)
+                                  uint32_t                 trace_num)
 {
 	size_t size;
 	int ret;
@@ -254,7 +254,7 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
 	zend_string *str = NULL;
 #endif
 
-    if (rt_opline && ssa && ssa->cfg.map) {
+	if (rt_opline && ssa && ssa->cfg.map) {
 		/* Create additional entry point, to switch from interpreter to JIT-ed
 		 * code at run-time.
 		 */
@@ -291,7 +291,7 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
 			}
 			zend_jit_jmp(dasm_state, b);
 		}
-    }
+	}
 
 	if (dasm_link(dasm_state, &size) != DASM_S_OK) {
 		// TODO: dasm_link() failed ???
@@ -314,7 +314,7 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
 	entry = *dasm_ptr;
 	*dasm_ptr = (void*)((char*)*dasm_ptr + ZEND_MM_ALIGNED_SIZE_EX(size, DASM_ALIGNMENT));
 
-	if (is_trace) {
+	if (trace_num) {
 		zend_jit_trace_add_code(entry, size);
 	}
 
@@ -347,7 +347,7 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
 	}
 
 #if defined(HAVE_DISASM) || defined(HAVE_GDB) || defined(HAVE_OPROFILE) || defined(HAVE_PERFTOOLS) || defined(HAVE_VTUNE)
-    if (!name) {
+	if (!name) {
 		if (ZCG(accel_directives).jit_debug & (ZEND_JIT_DEBUG_ASM|ZEND_JIT_DEBUG_GDB|ZEND_JIT_DEBUG_OPROFILE|ZEND_JIT_DEBUG_PERF|ZEND_JIT_DEBUG_VTUNE|ZEND_JIT_DEBUG_PERF_DUMP)) {
 			str = zend_jit_func_name(op_array);
 			if (str) {
@@ -368,7 +368,7 @@ static void *dasm_link_and_encode(dasm_State             **dasm_state,
 	} else {
 	    if (ZCG(accel_directives).jit_debug & (ZEND_JIT_DEBUG_ASM_STUBS|ZEND_JIT_DEBUG_ASM)) {
 			zend_jit_disasm_add_symbol(name, (uintptr_t)entry, size);
-		    if (is_trace || (ZCG(accel_directives).jit_debug & ZEND_JIT_DEBUG_ASM_STUBS) != 0) {
+			if (trace_num || (ZCG(accel_directives).jit_debug & ZEND_JIT_DEBUG_ASM_STUBS) != 0) {
 				zend_jit_disasm(
 					name,
 					(op_array && op_array->filename) ? ZSTR_VAL(op_array->filename) : NULL,
@@ -1241,7 +1241,7 @@ static int zend_jit_compute_liveness(const zend_op_array *op_array, zend_ssa *ss
 								if (ssa->vars[src].definition_phi
 								 && ssa->vars[src].definition_phi->pi >= 0
 								 && phi->block == ssa->vars[src].definition_phi->block) {
-									/* Skip zero-lenght interval for Pi variable */
+									/* Skip zero-length interval for Pi variable */
 									src = ssa->vars[src].definition_phi->sources[0];
 								}
 								if (intervals[src]) {
@@ -1370,7 +1370,7 @@ static uint32_t zend_interval_intersection(zend_lifetime_interval *ival1, zend_l
 
 /* See "Optimized Interval Splitting in a Linear Scan Register Allocator",
    Christian Wimmer VEE'05 (2005), Figure 4. Allocation without spilling */
-static int zend_jit_try_allocate_free_reg(const zend_op_array *op_array, zend_ssa *ssa, zend_lifetime_interval *current, zend_regset available, zend_regset *hints, zend_lifetime_interval *active, zend_lifetime_interval *inactive, zend_lifetime_interval **list, zend_lifetime_interval **free)
+static int zend_jit_try_allocate_free_reg(const zend_op_array *op_array, const zend_op **ssa_opcodes, zend_ssa *ssa, zend_lifetime_interval *current, zend_regset available, zend_regset *hints, zend_lifetime_interval *active, zend_lifetime_interval *inactive, zend_lifetime_interval **list, zend_lifetime_interval **free)
 {
 	zend_lifetime_interval *it;
 	uint32_t freeUntilPos[ZREG_NUM];
@@ -1387,13 +1387,9 @@ static int zend_jit_try_allocate_free_reg(const zend_op_array *op_array, zend_ss
 	}
 
 	/* TODO: Allow usage of preserved registers ???
-	 * Their values have to be stored in prologuee and restored in epilogue
+	 * Their values have to be stored in prologue and restored in epilogue
 	 */
 	available = ZEND_REGSET_DIFFERENCE(available, ZEND_REGSET_PRESERVED);
-
-	if (ZEND_REGSET_IS_EMPTY(available)) {
-		return 0;
-	}
 
 	/* Set freeUntilPos of all physical registers to maxInt */
 	for (i = 0; i < ZREG_NUM; i++) {
@@ -1407,7 +1403,9 @@ static int zend_jit_try_allocate_free_reg(const zend_op_array *op_array, zend_ss
 		while (it) {
 			if (current->range.start != zend_interval_end(it)) {
 				freeUntilPos[it->reg] = 0;
-			} else if (zend_jit_may_reuse_reg(op_array->opcodes + current->range.start, ssa->ops + current->range.start, ssa, current->ssa_var, it->ssa_var)) {
+			} else if (zend_jit_may_reuse_reg(
+					ssa_opcodes ? ssa_opcodes[current->range.start] : op_array->opcodes + current->range.start,
+					ssa->ops + current->range.start, ssa, current->ssa_var, it->ssa_var)) {
 				if (!ZEND_REGSET_IN(*hints, it->reg) &&
 				    /* TODO: Avoid most often scratch registers. Find a better way ??? */
 				    (!current->used_as_hint ||
@@ -1430,6 +1428,10 @@ static int zend_jit_try_allocate_free_reg(const zend_op_array *op_array, zend_ss
 		if (hint != ZREG_NONE && current->hint->used_as_hint == current) {
 			ZEND_REGSET_EXCL(*hints, hint);
 		}
+	}
+
+	if (hint == ZREG_NONE && ZEND_REGSET_IS_EMPTY(available)) {
+		return 0;
 	}
 
 	/* See "Linear Scan Register Allocation on SSA Form", Christian Wimmer and
@@ -1468,7 +1470,7 @@ static int zend_jit_try_allocate_free_reg(const zend_op_array *op_array, zend_ss
 		}
 		while (line <= range->end) {
 			regset = zend_jit_get_scratch_regset(
-				op_array->opcodes + line,
+				ssa_opcodes ? ssa_opcodes[line] : op_array->opcodes + line,
 				ssa->ops + line,
 				op_array, ssa, current->ssa_var, line == last_use_line);
 			ZEND_REGSET_FOREACH(regset, reg) {
@@ -1482,7 +1484,7 @@ static int zend_jit_try_allocate_free_reg(const zend_op_array *op_array, zend_ss
 	} while (range);
 
 #if 0
-	/* Coalesing */
+	/* Coalescing */
 	if (ssa->vars[current->ssa_var].definition == current->start) {
 		zend_op *opline = op_array->opcodes + current->start;
 		int hint = -1;
@@ -1511,13 +1513,17 @@ static int zend_jit_try_allocate_free_reg(const zend_op_array *op_array, zend_ss
 	}
 #endif
 
-    if (hint != ZREG_NONE && freeUntilPos[hint] > zend_interval_end(current)) {
+	if (hint != ZREG_NONE && freeUntilPos[hint] > zend_interval_end(current)) {
 		current->reg = hint;
 		if (current->used_as_hint) {
 			ZEND_REGSET_INCL(*hints, hint);
 		}
 		return 1;
-    }
+	}
+
+	if (ZEND_REGSET_IS_EMPTY(available)) {
+		return 0;
+	}
 
 	pos = 0; reg = ZREG_NONE;
 	pos2 = 0; reg2 = ZREG_NONE;
@@ -1561,7 +1567,7 @@ static int zend_jit_try_allocate_free_reg(const zend_op_array *op_array, zend_ss
 		}
 		return 1;
 #if 0
-	// TODO: allow low prioirity register usage
+	// TODO: allow low priority register usage
 	} else if (reg2 != ZREG_NONE && zend_interval_end(current) < pos2) {
 		/* register available for the whole interval */
 		current->reg = reg2;
@@ -1596,7 +1602,7 @@ static int zend_jit_allocate_blocked_reg(void)
 
 /* See "Optimized Interval Splitting in a Linear Scan Register Allocator",
    Christian Wimmer VEE'10 (2005), Figure 2. */
-static zend_lifetime_interval* zend_jit_linear_scan(const zend_op_array *op_array, zend_ssa *ssa, zend_lifetime_interval *list)
+static zend_lifetime_interval* zend_jit_linear_scan(const zend_op_array *op_array, const zend_op **ssa_opcodes, zend_ssa *ssa, zend_lifetime_interval *list)
 {
 	zend_lifetime_interval *unhandled, *active, *inactive, *handled, *free;
 	zend_lifetime_interval *current, **p, *q;
@@ -1655,7 +1661,7 @@ static zend_lifetime_interval* zend_jit_linear_scan(const zend_op_array *op_arra
 			}
 		}
 
-		if (zend_jit_try_allocate_free_reg(op_array, ssa, current, available, &hints, active, inactive, &unhandled, &free) ||
+		if (zend_jit_try_allocate_free_reg(op_array, ssa_opcodes, ssa, current, available, &hints, active, inactive, &unhandled, &free) ||
 		    zend_jit_allocate_blocked_reg()) {
 			ZEND_REGSET_EXCL(available, current->reg);
 			current->list_next = active;
@@ -1711,9 +1717,12 @@ static void zend_jit_dump_lifetime_interval(const zend_op_array *op_array, const
 		fprintf(stderr, " store");
 	}
 	if (ival->hint) {
-		var_num = ssa->vars[ival->hint->ssa_var].var;
-		fprintf(stderr, " hint=#%d.", ival->hint->ssa_var);
-		zend_dump_var(op_array, (var_num < op_array->last_var ? IS_CV : 0), var_num);
+		fprintf(stderr, " hint");
+		if (ival->hint->ssa_var >= 0) {
+			var_num = ssa->vars[ival->hint->ssa_var].var;
+			fprintf(stderr, "=#%d.", ival->hint->ssa_var);
+			zend_dump_var(op_array, (var_num < op_array->last_var ? IS_CV : 0), var_num);
+		}
 		if (ival->hint->reg != ZREG_NONE) {
 			fprintf(stderr, " (%s)", zend_reg_name[ival->hint->reg]);
 		}
@@ -1788,7 +1797,7 @@ static zend_lifetime_interval** zend_jit_allocate_registers(const zend_op_array 
 		}
 
 		/* Linear Scan Register Allocation */
-		list = zend_jit_linear_scan(op_array, ssa, list);
+		list = zend_jit_linear_scan(op_array, NULL, ssa, list);
 
 		if (list) {
 			intervals = zend_arena_calloc(&CG(arena), ssa->vars_count, sizeof(zend_lifetime_interval*));
@@ -1836,7 +1845,7 @@ static zend_lifetime_interval** zend_jit_allocate_registers(const zend_op_array 
 									if (ssa->vars[src].definition_phi
 									 && ssa->vars[src].definition_phi->pi >= 0
 									 && phi->block == ssa->vars[src].definition_phi->block) {
-										/* Skip zero-lenght interval for Pi variable */
+										/* Skip zero-length interval for Pi variable */
 										src = ssa->vars[src].definition_phi->sources[0];
 									}
 									if (intervals[i]) {
@@ -1860,7 +1869,7 @@ static zend_lifetime_interval** zend_jit_allocate_registers(const zend_op_array 
 										if (ssa->vars[src].definition_phi
 										 && ssa->vars[src].definition_phi->pi >= 0
 										 && phi->block == ssa->vars[src].definition_phi->block) {
-											/* Skip zero-lenght interval for Pi variable */
+											/* Skip zero-length interval for Pi variable */
 											src = ssa->vars[src].definition_phi->sources[0];
 										}
 										if (intervals[src]) {
@@ -2128,7 +2137,7 @@ static int zend_jit(const zend_op_array *op_array, zend_ssa *ssa, const zend_op 
 			}
 		}
 		if (ssa->cfg.blocks[b].flags & ZEND_BB_LOOP_HEADER) {
-			if (!zend_jit_check_timeout(&dasm_state, op_array->opcodes + ssa->cfg.blocks[b].start)) {
+			if (!zend_jit_check_timeout(&dasm_state, op_array->opcodes + ssa->cfg.blocks[b].start, NULL)) {
 				goto jit_failure;
 			}
 		}
@@ -2203,7 +2212,8 @@ static int zend_jit(const zend_op_array *op_array, zend_ssa *ssa, const zend_op 
 								op1_def_info, OP1_DEF_REG_ADDR(),
 								res_use_info, res_info,
 								res_addr,
-								(op1_def_info & MAY_BE_LONG) && (op1_def_info & MAY_BE_DOUBLE) && zend_may_overflow(opline, op_array, ssa))) {
+								(op1_def_info & MAY_BE_LONG) && (op1_def_info & MAY_BE_DOUBLE) && zend_may_overflow(opline, op_array, ssa),
+								zend_may_throw(opline, ssa_op, op_array, ssa))) {
 							goto jit_failure;
 						}
 						goto done;
@@ -3022,9 +3032,9 @@ done:
 	return SUCCESS;
 
 jit_failure:
-    if (dasm_state) {
+	if (dasm_state) {
 		dasm_free(&dasm_state);
-    }
+	}
 	if (zend_jit_reg_alloc) {
 		zend_arena_release(&CG(arena), checkpoint);
 	}
@@ -3054,7 +3064,7 @@ static int zend_real_jit_func(zend_op_array *op_array, zend_script *script, cons
 
 	checkpoint = zend_arena_checkpoint(CG(arena));
 
-    /* Build SSA */
+	/* Build SSA */
 	memset(&ssa, 0, sizeof(zend_ssa));
 
 	if (zend_jit_op_array_analyze1(op_array, script, &ssa) != SUCCESS) {

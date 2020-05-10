@@ -782,9 +782,6 @@ static void _function_string(smart_str *str, zend_function *fptr, zend_class_ent
 	if (fptr->common.fn_flags & ZEND_ACC_CTOR) {
 		smart_str_appends(str, ", ctor");
 	}
-	if (fptr->common.fn_flags & ZEND_ACC_DTOR) {
-		smart_str_appends(str, ", dtor");
-	}
 	smart_str_appends(str, "> ");
 
 	if (fptr->common.fn_flags & ZEND_ACC_ABSTRACT) {
@@ -1680,16 +1677,12 @@ ZEND_METHOD(ReflectionFunctionAbstract, isUserDefined)
    Returns whether this function has been disabled or not */
 ZEND_METHOD(ReflectionFunction, isDisabled)
 {
-	reflection_object *intern;
-	zend_function *fptr;
-
-	GET_REFLECTION_OBJECT_PTR(fptr);
-
 	if (zend_parse_parameters_none() == FAILURE) {
 		RETURN_THROWS();
 	}
 
-	RETURN_BOOL(fptr->type == ZEND_INTERNAL_FUNCTION && fptr->internal_function.handler == zif_display_disabled_function);
+	/* A disabled function cannot be queried using Reflection. */
+	RETURN_FALSE;
 }
 /* }}} */
 
@@ -2268,20 +2261,22 @@ ZEND_METHOD(ReflectionGenerator, getExecutingGenerator)
 ZEND_METHOD(ReflectionParameter, __construct)
 {
 	parameter_reference *ref;
-	zval *reference, *parameter;
+	zval *reference;
+	zend_string *arg_name = NULL;
+	zend_long position;
 	zval *object;
 	zval *prop_name;
 	reflection_object *intern;
 	zend_function *fptr;
 	struct _zend_arg_info *arg_info;
-	int position;
 	uint32_t num_args;
 	zend_class_entry *ce = NULL;
 	zend_bool is_closure = 0;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zz", &reference, &parameter) == FAILURE) {
-		RETURN_THROWS();
-	}
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_ZVAL(reference)
+		Z_PARAM_STR_OR_LONG(arg_name, position)
+	ZEND_PARSE_PARAMETERS_END();
 
 	object = ZEND_THIS;
 	intern = Z_REFLECTION_P(object);
@@ -2379,34 +2374,23 @@ ZEND_METHOD(ReflectionParameter, __construct)
 	if (fptr->common.fn_flags & ZEND_ACC_VARIADIC) {
 		num_args++;
 	}
-	if (Z_TYPE_P(parameter) == IS_LONG) {
-		position= (int)Z_LVAL_P(parameter);
-		if (position < 0 || (uint32_t)position >= num_args) {
-			_DO_THROW("The parameter specified by its offset could not be found");
-			goto failure;
-		}
-	} else {
+	if (arg_name != NULL) {
 		uint32_t i;
-
 		position = -1;
-		if (!try_convert_to_string(parameter)) {
-			goto failure;
-		}
 
 		if (has_internal_arg_info(fptr)) {
 			for (i = 0; i < num_args; i++) {
 				if (arg_info[i].name) {
-					if (strcmp(((zend_internal_arg_info*)arg_info)[i].name, Z_STRVAL_P(parameter)) == 0) {
+					if (strcmp(((zend_internal_arg_info*)arg_info)[i].name, ZSTR_VAL(arg_name)) == 0) {
 						position = i;
 						break;
 					}
-
 				}
 			}
 		} else {
 			for (i = 0; i < num_args; i++) {
 				if (arg_info[i].name) {
-					if (strcmp(ZSTR_VAL(arg_info[i].name), Z_STRVAL_P(parameter)) == 0) {
+					if (zend_string_equals(arg_name, arg_info[i].name)) {
 						position = i;
 						break;
 					}
@@ -2415,6 +2399,15 @@ ZEND_METHOD(ReflectionParameter, __construct)
 		}
 		if (position == -1) {
 			_DO_THROW("The parameter specified by its name could not be found");
+			goto failure;
+		}
+	} else {
+		if (position < 0) {
+			zend_argument_value_error(2, "must be greater than or equal to 0");
+			goto failure;
+		}
+		if (position >= num_args) {
+			_DO_THROW("The parameter specified by its offset could not be found");
 			goto failure;
 		}
 	}
@@ -2448,6 +2441,7 @@ failure:
 	if (is_closure) {
 		zval_ptr_dtor(reference);
 	}
+	RETURN_THROWS();
 }
 /* }}} */
 
@@ -3510,7 +3504,7 @@ ZEND_METHOD(ReflectionMethod, isConstructor)
 /* }}} */
 
 /* {{{ proto public bool ReflectionMethod::isDestructor()
-   Returns whether this method is static */
+   Returns whether this method is a destructor */
 ZEND_METHOD(ReflectionMethod, isDestructor)
 {
 	reflection_object *intern;
@@ -3520,7 +3514,8 @@ ZEND_METHOD(ReflectionMethod, isDestructor)
 		RETURN_THROWS();
 	}
 	GET_REFLECTION_OBJECT_PTR(mptr);
-	RETURN_BOOL(mptr->common.fn_flags & ZEND_ACC_DTOR);
+	RETURN_BOOL(zend_string_equals_literal_ci(
+		mptr->common.function_name, ZEND_DESTRUCTOR_FUNC_NAME));
 }
 /* }}} */
 

@@ -178,6 +178,19 @@ PHP 8.0 UPGRADE NOTES
         }
 
     RFC: https://wiki.php.net/rfc/abstract_trait_method_validation
+  . Disabled functions are now treated exactly like non-existent functions.
+    Calling a disabled function will report it as unknown, and redefining a
+    disabled function is now possible.
+  . data: stream wrappers are no longer writable, which matches the documented
+    behavior.
+  . The arithmetic and bitwise operators
+    +, -, *, /, **, %, <<, >>, &, |, ^, ~, ++, --
+    will now consistently throw a TypeError when one of the operands is an
+    array, resource or non-overloaded object. The only exception to this is the
+    array + array merge operation, which remains supported.
+    RFC: https://wiki.php.net/rfc/arithmetic_operator_type_checks
+  . Float to string casting will now always behave locale-independently.
+    RFC: https://wiki.php.net/rfc/locale_independent_float_to_string
 
 - COM:
   . Removed the ability to import case-insensitive constants from type
@@ -192,7 +205,7 @@ PHP 8.0 UPGRADE NOTES
 - dom:
   . Remove unimplemented classes from ext/dom that had no behavior and contained
     test data. These classes have also been removed in the latest version of DOM
-	standard:
+    standard:
 
      * DOMNameList
      * DomImplementationList
@@ -287,6 +300,10 @@ PHP 8.0 UPGRADE NOTES
     now ignored.
 
 - PDO:
+  . The default error handling mode has been changed from "silent" to
+   "exceptions". See https://www.php.net/manual/en/pdo.error-handling.php
+    for details of behavior changes and how to explicitly set this attribute.
+    RFC: https://wiki.php.net/rfc/pdo_default_errmode
   . The method PDOStatement::setFetchMode() now accepts the following signature:
 
         PDOStatement::setFetchMode($mode, $classname, $params)
@@ -325,6 +342,9 @@ PHP 8.0 UPGRADE NOTES
         ReflectionParameter::getDefaultValue()
         ReflectionParameter::isDefaultValueConstant()
         ReflectionParameter::getDefaultValueConstantName()
+  . ReflectionMethod::isConstructor() and ReflectionMethod::isDestructor() now
+    also return true for `__construct` and `__destruct` in methods of interfaces.
+    Previously, this would only be true in methods of classes and traits.
 
 - Socket:
   . The deprecated AI_IDN_ALLOW_UNASSIGNED and AI_IDN_USE_STD3_ASCII_RULES
@@ -388,6 +408,20 @@ PHP 8.0 UPGRADE NOTES
     using serialize_precision rather than precision. In a default configuration,
     this means that floating-point numbers are now printed with full accuracy
     by these debugging functions.
+  . If the array returned by __sleep() contains non-existing properties, these
+    are now silently ignored. Previously, such properties would have been
+    serialized as if they had the value NULL.
+  . The default locale on startup is now always "C". No locales are inherited
+    from the environment by default. Previously, LC_ALL was set to "C", while
+    LC_CTYPE was inherited from the environment. However, some functions did not
+    respect the inherited locale without an explicit setlocale() call. An
+    explicit setlocale() call is now always required if you wish to change any
+    locale component from the default.
+
+- Sysvsem:
+  . sem_get() will now return an SysvSemaphore object rather than a resource.
+    Return value checks using is_resource() should be replaced with checks
+    for `false`.
 
 - tidy:
   . The $use_include_path parameter, which was not used internally, has been
@@ -453,10 +487,20 @@ PHP 8.0 UPGRADE NOTES
     defines a __toString() method.
     RFC: https://wiki.php.net/rfc/stringable
   . Traits can now define abstract private methods.
+    RFC: https://wiki.php.net/rfc/abstract_trait_method_validation
+  . `throw` can now be used as an expression.
+    RFC: https://wiki.php.net/rfc/throw_expression
+  . An optional trailing comma is now allowed in parameter lists.
+    RFC: https://wiki.php.net/rfc/trailing_comma_in_parameter_list
 
 - Date:
   . Added DateTime::createFromInterface() and
     DateTimeImmutable::createFromInterface().
+
+- Enchant:
+  . enchant_dict_add()
+  . enchant_dict_is_added()
+  . LIBENCHANT_VERSION macro
 
 - dom:
   . Introduce DOMParentNode and DOMChildNode with new traversal and manipulation APIs
@@ -484,10 +528,26 @@ PHP 8.0 UPGRADE NOTES
 4. Deprecated Functionality
 ========================================
 
+- Core:
+  . Calling get_defined_functions() with $exclude_disabled explicitly set to
+    false is deprecated. get_defined_functions() will never include disabled
+    functions.
+
+- Enchant:
+  . enchant_broker_set_dict_path and enchant_broker_get_dict_path
+    not available in libenchant < 1.5 nor in libenchant-2
+  . enchant_dict_add_to_personal, use enchant_dict_add instead
+  . enchant_dict_is_in_session, use enchant_dict_is_added instead
+
 - Zip:
   . Using empty file as ZipArchive is deprecated. Libzip 1.6.0
     do not accept empty files as valid zip archives any longer.
     Existing workaround will be removed in next version.
+
+- Reflection:
+  . ReflectionFunction::isDisabled() is deprecated, as it is no longer possible
+    to create a ReflectionFunction for a disabled function. This method now
+    always returns false.
 
 ========================================
 5. Changed Functions
@@ -500,7 +560,7 @@ PHP 8.0 UPGRADE NOTES
    . comp_method
    . comp_flags
    . env_method
-   . enc_pasword
+   . enc_password
  . ZipArchive::addEmptyDir, ZipArchive::addFile and aZipArchive::addFromString
    methods have a new "flags" argument. This allow to manage name encoding
    (ZipArchive::FL_ENC_*) and entry replacement (ZipArchive::FL_OVERWRITE)
@@ -522,12 +582,23 @@ PHP 8.0 UPGRADE NOTES
     PR: https://github.com/php/php-src/pull/4797
 
 - Standard:
-  . Added str_contains($haystack, $needle) function, which checks whether
-    $haystack contains $needle as a sub-string. It is equivalent to writing
-    strpos($haystack, $needle) !== false.
+  . Added
+
+        str_contains(string $haystack, string $needle): bool
+        str_starts_with(string $haystack, string $needle): bool
+        str_ends_with(string $haystack, string $needle): bool
+
+    functions, which check whether $haystack contains, starts with or ends with
+    $needle.
+    RFC: https://wiki.php.net/rfc/str_contains
+    RFC: https://wiki.php.net/rfc/add_str_starts_with_and_ends_with_functions
   . Added fdiv() function, which performs a floating-point division under
     IEEE 754 semantics. Division by zero is considered well-defined and
     will return one of Inf, -Inf or NaN.
+  . Added get_debug_type() function, which returns a type useful for error
+    messages. Unlike gettype(), it uses canonical type names, returns class
+    names for objects, and indicates the resource type for resources.
+    RFC: https://wiki.php.net/rfc/get_debug_type
 
 - Zip:
   . ZipArchive::setMtimeName and ZipArchive::setMtimeIndex to set the
@@ -561,6 +632,11 @@ PHP 8.0 UPGRADE NOTES
 - CURL:
   . The CURL extension now requires at least libcurl 7.29.0.
 
+- Enchant:
+  . The enchant extension now uses libenchant-2 by default when available.
+    libenchant version 1 is still supported but is deprecated and could
+    be removed in the future.
+
 - GD:
   . The $num_points parameter of imagepolygon(), imageopenpolygon() and
     imagefilledpolygon() is now optional, i.e. these functions may be called
@@ -571,6 +647,10 @@ PHP 8.0 UPGRADE NOTES
 
 - MBString:
   . The Unicode data tables have been updated to version 13.0.0.
+
+- MySQLi / PDO MySQL:
+  . When mysqlnd is not used (which is the default and recommended option),
+    the minimum supported libmysqlclient version is now 5.1.
 
 ========================================
 10. New Global Constants
@@ -600,6 +680,9 @@ PHP 8.0 UPGRADE NOTES
 ========================================
 13. Other Changes
 ========================================
+
+- EBCDIC targets are no longer supported, though it's unlikely that they were
+  still working in the first place.
 
 ========================================
 14. Performance Improvements

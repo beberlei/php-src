@@ -114,7 +114,7 @@ again:
 			php_printf("%sint(" ZEND_LONG_FMT ")\n", COMMON, Z_LVAL_P(struc));
 			break;
 		case IS_DOUBLE:
-			php_printf("%sfloat(%.*G)\n", COMMON, (int) PG(serialize_precision), Z_DVAL_P(struc));
+			php_printf_unchecked("%sfloat(%.*H)\n", COMMON, (int) PG(serialize_precision), Z_DVAL_P(struc));
 			break;
 		case IS_STRING:
 			php_printf("%sstring(%zd) \"", COMMON, Z_STRLEN_P(struc));
@@ -295,7 +295,7 @@ again:
 		php_printf("%sint(" ZEND_LONG_FMT ")\n", COMMON, Z_LVAL_P(struc));
 		break;
 	case IS_DOUBLE:
-		php_printf("%sfloat(%.*G)\n", COMMON, (int) PG(serialize_precision), Z_DVAL_P(struc));
+		php_printf_unchecked("%sfloat(%.*H)\n", COMMON, (int) PG(serialize_precision), Z_DVAL_P(struc));
 		break;
 	case IS_STRING:
 		php_printf("%sstring(%zd) \"", COMMON, Z_STRLEN_P(struc));
@@ -729,8 +729,11 @@ static int php_var_serialize_call_sleep(zval *retval, zval *struc) /* {{{ */
 	}
 
 	if (!HASH_OF(retval)) {
+		zend_class_entry *ce;
+		ZEND_ASSERT(Z_TYPE_P(struc) == IS_OBJECT);
+		ce = Z_OBJCE_P(struc);
 		zval_ptr_dtor(retval);
-		php_error_docref(NULL, E_NOTICE, "__sleep should return an array only containing the names of instance-variables to serialize");
+		php_error_docref(NULL, E_NOTICE, "%s::__sleep should return an array only containing the names of instance-variables to serialize", ZSTR_VAL(ce->name));
 		return FAILURE;
 	}
 
@@ -777,9 +780,7 @@ static int php_var_serialize_try_add_sleep_prop(
 		if (Z_TYPE_P(val) == IS_UNDEF) {
 			zend_property_info *info = zend_get_typed_property_info_for_slot(Z_OBJ_P(struc), val);
 			if (info) {
-				zend_throw_error(NULL,
-					"Typed property %s::$%s must not be accessed before initialization (in __sleep)",
-					ZSTR_VAL(Z_OBJCE_P(struc)->name), ZSTR_VAL(error_name));
+				return SUCCESS;
 			}
 			return FAILURE;
 		}
@@ -813,7 +814,8 @@ static int php_var_serialize_get_sleep_props(
 		ZVAL_DEREF(name_val);
 		if (Z_TYPE_P(name_val) != IS_STRING) {
 			php_error_docref(NULL, E_NOTICE,
-					"__sleep should return an array only containing the names of instance-variables to serialize.");
+					"%s::__sleep should return an array only containing the names of instance-variables to serialize",
+					ZSTR_VAL(ce->name));
 		}
 
 		name = zval_get_tmp_string(name_val, &tmp_name);
@@ -861,7 +863,6 @@ static int php_var_serialize_get_sleep_props(
 
 		php_error_docref(NULL, E_NOTICE,
 			"\"%s\" returned as member variable from __sleep() but does not exist", ZSTR_VAL(name));
-		zend_hash_add(ht, name, &EG(uninitialized_zval));
 		zend_tmp_string_release(tmp_name);
 	} ZEND_HASH_FOREACH_END();
 

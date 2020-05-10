@@ -399,7 +399,7 @@ php_formatted_print(char *format, size_t format_len, zval *args, int argc, int n
 	char *temppos, padding;
 	zend_string *result;
 	int always_sign;
-	int bad_arg_number = 0;
+	int max_missing_argnum = -1;
 
 	result = zend_string_alloc(size, 0);
 
@@ -447,9 +447,8 @@ php_formatted_print(char *format, size_t format_len, zval *args, int argc, int n
 					argnum = php_sprintf_getnumber(&format, &format_len);
 
 					if (argnum <= 0) {
-						zend_string_efree(result);
 						zend_value_error("Argument number must be greater than zero");
-						return NULL;
+						goto fail;
 					}
 					argnum--;
 					format++;  /* skip the '$' */
@@ -470,10 +469,15 @@ php_formatted_print(char *format, size_t format_len, zval *args, int argc, int n
 						/* space padding, the default */
 					} else if (*format == '+') {
 						always_sign = 1;
-					} else if (*format == '\'' && format_len > 1) {
-						format++;
-						format_len--;
-						padding = *format;
+					} else if (*format == '\'') {
+						if (format_len > 1) {
+							format++;
+							format_len--;
+							padding = *format;
+						} else {
+							zend_value_error("Missing padding character");
+							goto fail;
+						}
 					} else {
 						PRINTF_DEBUG(("sprintf: end of modifiers\n"));
 						break;
@@ -488,9 +492,8 @@ php_formatted_print(char *format, size_t format_len, zval *args, int argc, int n
 				if (isdigit((int)*format)) {
 					PRINTF_DEBUG(("sprintf: getting width\n"));
 					if ((width = php_sprintf_getnumber(&format, &format_len)) < 0) {
-						efree(result);
 						zend_value_error("Width must be greater than zero and less than %d", INT_MAX);
-						return NULL;
+						goto fail;
 					}
 					adjusting |= ADJ_WIDTH;
 				} else {
@@ -505,9 +508,8 @@ php_formatted_print(char *format, size_t format_len, zval *args, int argc, int n
 					PRINTF_DEBUG(("sprintf: getting precision\n"));
 					if (isdigit((int)*format)) {
 						if ((precision = php_sprintf_getnumber(&format, &format_len)) < 0) {
-							efree(result);
 							zend_value_error("Precision must be greater than zero and less than %d", INT_MAX);
-							return NULL;
+							goto fail;
 						}
 						adjusting |= ADJ_PRECISION;
 						expprec = 1;
@@ -527,7 +529,7 @@ php_formatted_print(char *format, size_t format_len, zval *args, int argc, int n
 			PRINTF_DEBUG(("sprintf: format character='%c'\n", *format));
 
 			if (argnum >= argc) {
-				bad_arg_number = 1;
+				max_missing_argnum = MAX(max_missing_argnum, argnum);
 				continue;
 			}
 
@@ -614,33 +616,37 @@ php_formatted_print(char *format, size_t format_len, zval *args, int argc, int n
 
 				case '\0':
 					if (!format_len) {
-						goto exit;
+						zend_value_error("Missing format specifier at end of string");
+						goto fail;
 					}
-					break;
+					/* break missing intentionally */
 
 				default:
-					break;
+					zend_value_error("Unknown format specifier '%c'", *format);
+					goto fail;
 			}
 			format++;
 			format_len--;
 		}
 	}
 
-	if (bad_arg_number == 1) {
-		efree(result);
+	if (max_missing_argnum >= 0) {
 		if (nb_additional_parameters == -1) {
-			zend_value_error("The arguments array must contain %d items, %d given", argnum + 1, argc);
+			zend_value_error("The arguments array must contain %d items, %d given", max_missing_argnum + 1, argc);
 		} else {
-			zend_argument_count_error("%d parameters are required, %d given", argnum + nb_additional_parameters + 1, argc + nb_additional_parameters);
+			zend_argument_count_error("%d parameters are required, %d given", max_missing_argnum + nb_additional_parameters + 1, argc + nb_additional_parameters);
 		}
-		return NULL;
+		goto fail;
 	}
 
-exit:
 	/* possibly, we have to make sure we have room for the terminating null? */
 	ZSTR_VAL(result)[outpos]=0;
 	ZSTR_LEN(result) = outpos;
 	return result;
+
+fail:
+	zend_string_efree(result);
+	return NULL;
 }
 /* }}} */
 

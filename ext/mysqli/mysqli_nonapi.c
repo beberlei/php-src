@@ -328,8 +328,8 @@ void mysqli_common_connect(INTERNAL_FUNCTION_PARAMETERS, zend_bool is_real_conne
 #if !defined(MYSQLI_USE_MYSQLND)
 	mysql->mysql->reconnect = MyG(reconnect);
 #endif
-
-	mysql_options(mysql->mysql, MYSQL_OPT_LOCAL_INFILE, (char *)&MyG(allow_local_infile));
+	unsigned int allow_local_infile = MyG(allow_local_infile);
+	mysql_options(mysql->mysql, MYSQL_OPT_LOCAL_INFILE, (char *)&allow_local_infile);
 
 end:
 	if (!mysqli_resource) {
@@ -1035,7 +1035,6 @@ PHP_FUNCTION(mysqli_stmt_get_warnings)
 }
 /* }}} */
 
-#ifdef HAVE_MYSQLI_SET_CHARSET
 /* {{{ proto bool mysqli_set_charset(object link, string csname)
    sets client character set */
 PHP_FUNCTION(mysqli_set_charset)
@@ -1056,9 +1055,7 @@ PHP_FUNCTION(mysqli_set_charset)
 	RETURN_TRUE;
 }
 /* }}} */
-#endif
 
-#ifdef HAVE_MYSQLI_GET_CHARSET
 /* {{{ proto object mysqli_get_charset(object link) U
    returns a character set object */
 PHP_FUNCTION(mysqli_get_charset)
@@ -1115,7 +1112,6 @@ PHP_FUNCTION(mysqli_get_charset)
 	add_property_string(return_value, "comment", (comment) ? (char *)comment : "");
 }
 /* }}} */
-#endif
 
 #if !defined(MYSQLI_USE_MYSQLND)
 extern char * mysqli_escape_string_for_tx_name_in_comment(const char * const name);
@@ -1180,7 +1176,7 @@ PHP_FUNCTION(mysqli_begin_transaction)
 	size_t			name_len = -1;
 	zend_bool	err = FALSE;
 
-	if (zend_parse_method_parameters(ZEND_NUM_ARGS(), getThis(), "O|ls", &mysql_link, mysqli_link_class_entry, &flags, &name, &name_len) == FAILURE) {
+	if (zend_parse_method_parameters(ZEND_NUM_ARGS(), getThis(), "O|ls!", &mysql_link, mysqli_link_class_entry, &flags, &name, &name_len) == FAILURE) {
 		RETURN_THROWS();
 	}
 	MYSQLI_FETCH_RESOURCE_CONN(mysql, mysql_link, MYSQLI_STATUS_VALID);

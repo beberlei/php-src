@@ -49,6 +49,7 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
+#include <locale.h>
 
 #ifndef __P
 #ifdef __GNUC__
@@ -135,40 +136,6 @@ struct objid_query {
 	int oid_increasing_check;
 	snmpobjarg *vars;
 };
-
-/* {{{ snmp_functions[]
- */
-static const zend_function_entry snmp_functions[] = {
-	PHP_FE(snmpget,					arginfo_snmpget)
-	PHP_FE(snmpgetnext, 				arginfo_snmpgetnext)
-	PHP_FE(snmpwalk, 				arginfo_snmpwalk)
-	PHP_FE(snmprealwalk, 				arginfo_snmprealwalk)
-	PHP_FALIAS(snmpwalkoid, snmprealwalk, 		arginfo_snmpwalkoid)
-	PHP_FE(snmpset, 				arginfo_snmpset)
-	PHP_FE(snmp_get_quick_print, 			arginfo_snmp_get_quick_print)
-	PHP_FE(snmp_set_quick_print, 			arginfo_snmp_set_quick_print)
-	PHP_FE(snmp_set_enum_print, 			arginfo_snmp_set_enum_print)
-	PHP_FE(snmp_set_oid_output_format, 		arginfo_snmp_set_oid_output_format)
-	PHP_FALIAS(snmp_set_oid_numeric_print, snmp_set_oid_output_format, arginfo_snmp_set_oid_numeric_print)
-
-	PHP_FE(snmp2_get, 				arginfo_snmp2_get)
-	PHP_FE(snmp2_getnext, 				arginfo_snmp2_getnext)
-	PHP_FE(snmp2_walk, 				arginfo_snmp2_walk)
-	PHP_FE(snmp2_real_walk, 			arginfo_snmp2_real_walk)
-	PHP_FE(snmp2_set, 				arginfo_snmp2_set)
-
-	PHP_FE(snmp3_get, 				arginfo_snmp3_get)
-	PHP_FE(snmp3_getnext, 				arginfo_snmp3_getnext)
-	PHP_FE(snmp3_walk, 				arginfo_snmp3_walk)
-	PHP_FE(snmp3_real_walk, 			arginfo_snmp3_real_walk)
-	PHP_FE(snmp3_set, 				arginfo_snmp3_set)
-	PHP_FE(snmp_set_valueretrieval,			arginfo_snmp_set_valueretrieval)
-	PHP_FE(snmp_get_valueretrieval,			arginfo_snmp_get_valueretrieval)
-
-	PHP_FE(snmp_read_mib, 				arginfo_snmp_read_mib)
-	PHP_FE_END
-};
-/* }}} */
 
 /* query an agent with GET method */
 #define SNMP_CMD_GET		(1<<0)
@@ -1517,7 +1484,7 @@ PHP_FUNCTION(snmp_read_mib)
 
 /* {{{ proto SNMP::__construct(int version, string hostname, string community|securityName [, int timeout [, int retries]])
 	Creates a new SNMP session to specified host. */
-PHP_METHOD(snmp, __construct)
+PHP_METHOD(SNMP, __construct)
 {
 	php_snmp_object *snmp_object;
 	zval *object = ZEND_THIS;
@@ -1564,7 +1531,7 @@ PHP_METHOD(snmp, __construct)
 
 /* {{{ proto bool SNMP::close()
 	Close SNMP session */
-PHP_METHOD(snmp, close)
+PHP_METHOD(SNMP, close)
 {
 	php_snmp_object *snmp_object;
 	zval *object = ZEND_THIS;
@@ -1583,7 +1550,7 @@ PHP_METHOD(snmp, close)
 
 /* {{{ proto mixed SNMP::get(mixed object_id [, bool preserve_keys])
    Fetch a SNMP object returning scalar for single OID and array of oid->value pairs for multi OID request */
-PHP_METHOD(snmp, get)
+PHP_METHOD(SNMP, get)
 {
 	php_snmp(INTERNAL_FUNCTION_PARAM_PASSTHRU, SNMP_CMD_GET, (-1));
 }
@@ -1591,7 +1558,7 @@ PHP_METHOD(snmp, get)
 
 /* {{{ proto mixed SNMP::getnext(mixed object_id)
    Fetch a SNMP object returning scalar for single OID and array of oid->value pairs for multi OID request */
-PHP_METHOD(snmp, getnext)
+PHP_METHOD(SNMP, getnext)
 {
 	php_snmp(INTERNAL_FUNCTION_PARAM_PASSTHRU, SNMP_CMD_GETNEXT, (-1));
 }
@@ -1599,7 +1566,7 @@ PHP_METHOD(snmp, getnext)
 
 /* {{{ proto mixed SNMP::walk(mixed object_id [, bool $suffix_as_key = FALSE [, int $max_repetitions [, int $non_repeaters]])
    Return all objects including their respective object id within the specified one as array of oid->value pairs */
-PHP_METHOD(snmp, walk)
+PHP_METHOD(SNMP, walk)
 {
 	php_snmp(INTERNAL_FUNCTION_PARAM_PASSTHRU, SNMP_CMD_WALK, (-1));
 }
@@ -1607,7 +1574,7 @@ PHP_METHOD(snmp, walk)
 
 /* {{{ proto bool SNMP::set(mixed object_id, mixed type, mixed value)
    Set the value of a SNMP object */
-PHP_METHOD(snmp, set)
+PHP_METHOD(SNMP, set)
 {
 	php_snmp(INTERNAL_FUNCTION_PARAM_PASSTHRU, SNMP_CMD_SET, (-1));
 }
@@ -1615,7 +1582,7 @@ PHP_METHOD(snmp, set)
 
 /* {{{ proto bool SNMP::setSecurity(string sec_level, [ string auth_protocol, string auth_passphrase [, string priv_protocol, string priv_passphrase [, string contextName [, string contextEngineID]]]])
 	Set SNMPv3 security-related session parameters */
-PHP_METHOD(snmp, setSecurity)
+PHP_METHOD(SNMP, setSecurity)
 {
 	php_snmp_object *snmp_object;
 	zval *object = ZEND_THIS;
@@ -1640,7 +1607,7 @@ PHP_METHOD(snmp, setSecurity)
 
 /* {{{ proto int SNMP::getErrno()
 	Get last error code number */
-PHP_METHOD(snmp, getErrno)
+PHP_METHOD(SNMP, getErrno)
 {
 	php_snmp_object *snmp_object;
 	zval *object = ZEND_THIS;
@@ -1658,7 +1625,7 @@ PHP_METHOD(snmp, getErrno)
 
 /* {{{ proto int SNMP::getError()
 	Get last error message */
-PHP_METHOD(snmp, getError)
+PHP_METHOD(SNMP, getError)
 {
 	php_snmp_object *snmp_object;
 	zval *object = ZEND_THIS;
@@ -1979,22 +1946,6 @@ static void free_php_snmp_properties(zval *el)  /* {{{ */
 }
 /* }}} */
 
-/* {{{ php_snmp_class_methods[] */
-static const zend_function_entry php_snmp_class_methods[] = {
-	PHP_ME(snmp,	 __construct,		arginfo_class_SNMP___construct,	ZEND_ACC_PUBLIC)
-	PHP_ME(snmp,	 close,				arginfo_class_SNMP_close,		ZEND_ACC_PUBLIC)
-	PHP_ME(snmp,	 setSecurity,		arginfo_class_SNMP_setSecurity,	ZEND_ACC_PUBLIC)
-
-	PHP_ME(snmp,	 get,				arginfo_class_SNMP_get,			ZEND_ACC_PUBLIC)
-	PHP_ME(snmp,	 getnext,			arginfo_class_SNMP_getnext,		ZEND_ACC_PUBLIC)
-	PHP_ME(snmp,	 walk,				arginfo_class_SNMP_walk,		ZEND_ACC_PUBLIC)
-	PHP_ME(snmp,	 set,				arginfo_class_SNMP_set,			ZEND_ACC_PUBLIC)
-	PHP_ME(snmp,	 getErrno,			arginfo_class_SNMP_getErrno,	ZEND_ACC_PUBLIC)
-	PHP_ME(snmp,	 getError,			arginfo_class_SNMP_getError,	ZEND_ACC_PUBLIC)
-
-	PHP_FE_END
-};
-
 #define PHP_SNMP_PROPERTY_ENTRY_RECORD(name) \
 	{ "" #name "",		sizeof("" #name "") - 1,	php_snmp_read_##name,	php_snmp_write_##name }
 
@@ -2021,6 +1972,8 @@ PHP_MINIT_FUNCTION(snmp)
 	le_snmp_session = zend_register_list_destructors_ex(php_snmp_session_destructor, NULL, PHP_SNMP_SESSION_RES_NAME, module_number);
 
 	init_snmp("snmpapp");
+	/* net-snmp corrupts the CTYPE locale during initialization. */
+	setlocale(LC_CTYPE, "C");
 
 #ifdef NETSNMP_DS_LIB_DONT_PERSIST_STATE
 	/* Prevent update of the snmpapp.conf file */
@@ -2042,7 +1995,7 @@ PHP_MINIT_FUNCTION(snmp)
 	php_snmp_object_handlers.get_gc = php_snmp_get_gc;
 
 	/* Register SNMP Class */
-	INIT_CLASS_ENTRY(ce, "SNMP", php_snmp_class_methods);
+	INIT_CLASS_ENTRY(ce, "SNMP", class_SNMP_methods);
 	ce.create_object = php_snmp_object_new;
 	php_snmp_object_handlers.offset = XtOffsetOf(php_snmp_object, zo);
 	php_snmp_object_handlers.clone_obj = NULL;
@@ -2137,7 +2090,7 @@ zend_module_entry snmp_module_entry = {
 	NULL,
 	snmp_module_deps,
 	"snmp",
-	snmp_functions,
+	ext_functions,
 	PHP_MINIT(snmp),
 	PHP_MSHUTDOWN(snmp),
 	NULL,

@@ -2396,7 +2396,7 @@ PHP_FUNCTION(extract)
 
 	if (prefix) {
 		if (ZSTR_LEN(prefix) && !php_valid_var_name(ZSTR_VAL(prefix), ZSTR_LEN(prefix))) {
-			zend_value_error("Prefix is not a valid identifier");
+			zend_argument_value_error(3, "must be a valid identifier");
 			RETURN_THROWS();
 		}
 	}
@@ -2553,7 +2553,7 @@ PHP_FUNCTION(array_fill)
 
 	if (EXPECTED(num > 0)) {
 		if (sizeof(num) > 4 && UNEXPECTED(EXPECTED(num > 0x7fffffff))) {
-			zend_value_error("Too many elements");
+			zend_argument_value_error(2, "is too large");
 			RETURN_THROWS();
 		} else if (UNEXPECTED(start_key > ZEND_LONG_MAX - num + 1)) {
 			zend_throw_error(NULL, "Cannot add element to the array as the next element is already occupied");
@@ -2602,7 +2602,7 @@ PHP_FUNCTION(array_fill)
 	} else if (EXPECTED(num == 0)) {
 		RETURN_EMPTY_ARRAY();
 	} else {
-		zend_value_error("Number of elements can't be negative");
+		zend_argument_value_error(2, "must be greater than or equal to 0");
 		RETURN_THROWS();
 	}
 }
@@ -2843,7 +2843,7 @@ long_str:
 	}
 err:
 	if (err) {
-		zend_value_error("Step exceeds the specified range");
+		zend_argument_value_error(3, "must not exceed the specified range");
 		RETURN_THROWS();
 	}
 }
@@ -4083,47 +4083,24 @@ PHP_FUNCTION(array_count_values)
 }
 /* }}} */
 
-/* {{{ array_column_param_helper
- * Specialized conversion rules for array_column() function
- */
-static inline
-zend_bool array_column_param_helper(zval *param, int parameter_number) {
-	switch (Z_TYPE_P(param)) {
-		case IS_DOUBLE:
-			convert_to_long_ex(param);
-			/* fallthrough */
-		case IS_LONG:
-			return 1;
-
-		case IS_OBJECT:
-			if (!try_convert_to_string(param)) {
-				return 0;
-			}
-			/* fallthrough */
-		case IS_STRING:
-			return 1;
-
-		default:
-			zend_argument_type_error(parameter_number, "must be of type string|int, %s given", zend_zval_type_name(param));
-			return 0;
-	}
-}
-/* }}} */
-
-static inline zval *array_column_fetch_prop(zval *data, zval *name, zval *rv) /* {{{ */
+static inline zval *array_column_fetch_prop(zval *data, zend_string *name_str, zend_long name_long, zval *rv) /* {{{ */
 {
 	zval *prop = NULL;
 
 	if (Z_TYPE_P(data) == IS_OBJECT) {
+		zend_string *tmp_str;
+		/* If name is an integer convert integer to string */
+		if (name_str == NULL) {
+			tmp_str = zend_long_to_str(name_long);
+		} else {
+			tmp_str = zend_string_copy(name_str);
+		}
 		/* The has_property check is first performed in "exists" mode (which returns true for
 		 * properties that are null but exist) and then in "has" mode to handle objects that
 		 * implement __isset (which is not called in "exists" mode). */
-		zend_string *str, *tmp_str;
-
-		str = zval_get_tmp_string(name, &tmp_str);
-		if (Z_OBJ_HANDLER_P(data, has_property)(Z_OBJ_P(data), str, ZEND_PROPERTY_EXISTS, NULL)
-				|| Z_OBJ_HANDLER_P(data, has_property)(Z_OBJ_P(data), str, ZEND_PROPERTY_ISSET, NULL)) {
-			prop = Z_OBJ_HANDLER_P(data, read_property)(Z_OBJ_P(data), str, BP_VAR_R, NULL, rv);
+		if (Z_OBJ_HANDLER_P(data, has_property)(Z_OBJ_P(data), tmp_str, ZEND_PROPERTY_EXISTS, NULL)
+				|| Z_OBJ_HANDLER_P(data, has_property)(Z_OBJ_P(data), tmp_str, ZEND_PROPERTY_ISSET, NULL)) {
+			prop = Z_OBJ_HANDLER_P(data, read_property)(Z_OBJ_P(data), tmp_str, BP_VAR_R, NULL, rv);
 			if (prop) {
 				ZVAL_DEREF(prop);
 				if (prop != rv) {
@@ -4131,12 +4108,13 @@ static inline zval *array_column_fetch_prop(zval *data, zval *name, zval *rv) /*
 				}
 			}
 		}
-		zend_tmp_string_release(tmp_str);
+		zend_string_release(tmp_str);
 	} else if (Z_TYPE_P(data) == IS_ARRAY) {
-		if (Z_TYPE_P(name) == IS_STRING) {
-			prop = zend_symtable_find(Z_ARRVAL_P(data), Z_STR_P(name));
-		} else if (Z_TYPE_P(name) == IS_LONG) {
-			prop = zend_hash_index_find(Z_ARRVAL_P(data), Z_LVAL_P(name));
+		/* Name is a string */
+		if (name_str != NULL) {
+			prop = zend_symtable_find(Z_ARRVAL_P(data), name_str);
+		} else {
+			prop = zend_hash_index_find(Z_ARRVAL_P(data), name_long);
 		}
 		if (prop) {
 			ZVAL_DEREF(prop);
@@ -4144,42 +4122,42 @@ static inline zval *array_column_fetch_prop(zval *data, zval *name, zval *rv) /*
 		}
 	}
 
-
 	return prop;
 }
 /* }}} */
 
-/* {{{ proto array array_column(array input, mixed column_key[, mixed index_key])
+/* {{{ proto array array_column(array input, string|int|null column_key[, string|int|null index_key])
    Return the values from a single column in the input array, identified by the
    value_key and optionally indexed by the index_key */
 PHP_FUNCTION(array_column)
 {
 	HashTable *input;
 	zval *colval, *data, rv;
-	zval *column = NULL, *index = NULL;
+	zend_string *column_str = NULL;
+	zend_long column_long;
+	zend_bool column_is_null = 0;
+	zend_string *index_str = NULL;
+	zend_long index_long;
+	zend_bool index_is_null = 1;
 
 	ZEND_PARSE_PARAMETERS_START(2, 3)
 		Z_PARAM_ARRAY_HT(input)
-		Z_PARAM_ZVAL_EX(column, 1, 0)
+		Z_PARAM_STR_OR_LONG_OR_NULL(column_str, column_long, column_is_null)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_ZVAL_EX(index, 1, 0)
+		Z_PARAM_STR_OR_LONG_OR_NULL(index_str, index_long, index_is_null)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if ((column && !array_column_param_helper(column, 2)) ||
-	    (index && !array_column_param_helper(index, 3))) {
-		RETURN_THROWS();
-	}
-
 	array_init_size(return_value, zend_hash_num_elements(input));
-	if (!index) {
+	/* Index param is not passed */
+	if (index_is_null) {
 		zend_hash_real_init_packed(Z_ARRVAL_P(return_value));
 		ZEND_HASH_FILL_PACKED(Z_ARRVAL_P(return_value)) {
 			ZEND_HASH_FOREACH_VAL(input, data) {
 				ZVAL_DEREF(data);
-				if (!column) {
+				if (column_is_null) {
 					Z_TRY_ADDREF_P(data);
 					colval = data;
-				} else if ((colval = array_column_fetch_prop(data, column, &rv)) == NULL) {
+				} else if ((colval = array_column_fetch_prop(data, column_str, column_long, &rv)) == NULL) {
 					continue;
 				}
 				ZEND_HASH_FILL_ADD(colval);
@@ -4189,60 +4167,56 @@ PHP_FUNCTION(array_column)
 		ZEND_HASH_FOREACH_VAL(input, data) {
 			ZVAL_DEREF(data);
 
-			if (!column) {
+			if (column_is_null) {
 				Z_TRY_ADDREF_P(data);
 				colval = data;
-			} else if ((colval = array_column_fetch_prop(data, column, &rv)) == NULL) {
+			} else if ((colval = array_column_fetch_prop(data, column_str, column_long, &rv)) == NULL) {
 				continue;
 			}
 
 			/* Failure will leave keyval alone which will land us on the final else block below
 			 * which is to append the value as next_index
 			 */
-			if (index) {
-				zval rv;
-				zval *keyval = array_column_fetch_prop(data, index, &rv);
+			zval rv;
+			zval *keyval = array_column_fetch_prop(data, index_str, index_long, &rv);
 
-				if (keyval) {
-					switch (Z_TYPE_P(keyval)) {
-						case IS_STRING:
-							zend_symtable_update(Z_ARRVAL_P(return_value), Z_STR_P(keyval), colval);
+			if (keyval) {
+				switch (Z_TYPE_P(keyval)) {
+					case IS_STRING:
+						zend_symtable_update(Z_ARRVAL_P(return_value), Z_STR_P(keyval), colval);
+						break;
+					case IS_LONG:
+						zend_hash_index_update(Z_ARRVAL_P(return_value), Z_LVAL_P(keyval), colval);
+						break;
+					case IS_OBJECT:
+						{
+							zend_string *tmp_key;
+							zend_string *key = zval_get_tmp_string(keyval, &tmp_key);
+							zend_symtable_update(Z_ARRVAL_P(return_value), key, colval);
+							zend_tmp_string_release(tmp_key);
 							break;
-						case IS_LONG:
-							zend_hash_index_update(Z_ARRVAL_P(return_value), Z_LVAL_P(keyval), colval);
-							break;
-						case IS_OBJECT:
-							{
-								zend_string *tmp_key;
-								zend_string *key = zval_get_tmp_string(keyval, &tmp_key);
-								zend_symtable_update(Z_ARRVAL_P(return_value), key, colval);
-								zend_tmp_string_release(tmp_key);
-								break;
-							}
-						case IS_NULL:
-							zend_hash_update(Z_ARRVAL_P(return_value), ZSTR_EMPTY_ALLOC(), colval);
-							break;
-						case IS_DOUBLE:
-							zend_hash_index_update(Z_ARRVAL_P(return_value),
-									zend_dval_to_lval(Z_DVAL_P(keyval)), colval);
-							break;
-						case IS_TRUE:
-							zend_hash_index_update(Z_ARRVAL_P(return_value), 1, colval);
-							break;
-						case IS_FALSE:
-							zend_hash_index_update(Z_ARRVAL_P(return_value), 0, colval);
-							break;
-						case IS_RESOURCE:
-							zend_hash_index_update(Z_ARRVAL_P(return_value), Z_RES_HANDLE_P(keyval), colval);
-							break;
-						default:
-							zend_hash_next_index_insert(Z_ARRVAL_P(return_value), colval);
-							break;
-					}
-					zval_ptr_dtor(keyval);
-				} else {
-					zend_hash_next_index_insert(Z_ARRVAL_P(return_value), colval);
+						}
+					case IS_NULL:
+						zend_hash_update(Z_ARRVAL_P(return_value), ZSTR_EMPTY_ALLOC(), colval);
+						break;
+					case IS_DOUBLE:
+						zend_hash_index_update(Z_ARRVAL_P(return_value),
+								zend_dval_to_lval(Z_DVAL_P(keyval)), colval);
+						break;
+					case IS_TRUE:
+						zend_hash_index_update(Z_ARRVAL_P(return_value), 1, colval);
+						break;
+					case IS_FALSE:
+						zend_hash_index_update(Z_ARRVAL_P(return_value), 0, colval);
+						break;
+					case IS_RESOURCE:
+						zend_hash_index_update(Z_ARRVAL_P(return_value), Z_RES_HANDLE_P(keyval), colval);
+						break;
+					default:
+						zend_hash_next_index_insert(Z_ARRVAL_P(return_value), colval);
+						break;
 				}
+				zval_ptr_dtor(keyval);
 			} else {
 				zend_hash_next_index_insert(Z_ARRVAL_P(return_value), colval);
 			}
@@ -4322,7 +4296,7 @@ PHP_FUNCTION(array_pad)
 	input_size = zend_hash_num_elements(Z_ARRVAL_P(input));
 	pad_size_abs = ZEND_ABS(pad_size);
 	if (pad_size_abs < 0 || pad_size_abs - input_size > Z_L(1048576)) {
-		zend_value_error("You may only pad up to 1048576 elements at a time");
+		zend_argument_value_error(2, "must be less than or equal to 1048576");
 		RETURN_THROWS();
 	}
 
@@ -5790,7 +5764,7 @@ PHP_FUNCTION(array_rand)
 	num_avail = zend_hash_num_elements(Z_ARRVAL_P(input));
 
 	if (num_avail == 0) {
-		zend_value_error("Array is empty");
+		zend_argument_value_error(1, "cannot be empty");
 		RETURN_THROWS();
 	}
 
@@ -5831,7 +5805,7 @@ PHP_FUNCTION(array_rand)
 	}
 
 	if (num_req <= 0 || num_req > num_avail) {
-		zend_value_error("Second argument has to be between 1 and the number of elements in the array");
+		zend_argument_value_error(2, "must be between 1 and the number of elements in argument #1 ($arg)");
 		RETURN_THROWS();
 	}
 
@@ -6318,7 +6292,7 @@ PHP_FUNCTION(array_chunk)
 
 	/* Do bounds checking for size parameter. */
 	if (size < 1) {
-		zend_value_error("Size parameter expected to be greater than 0");
+		zend_argument_value_error(2, "must be greater than 0");
 		RETURN_THROWS();
 	}
 
@@ -6387,7 +6361,7 @@ PHP_FUNCTION(array_combine)
 	num_values = zend_hash_num_elements(values);
 
 	if (num_keys != num_values) {
-		zend_value_error("Both parameters should have an equal number of elements");
+		zend_argument_value_error(1, "and argument #2 ($values) must have the same number of elements");
 		RETURN_THROWS();
 	}
 

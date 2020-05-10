@@ -225,7 +225,7 @@ static void php_cli_server_buffer_append(php_cli_server_buffer *buffer, php_cli_
 static void php_cli_server_logf(int type, const char *format, ...);
 static void php_cli_server_log_response(php_cli_server_client *client, int status, const char *message);
 
-ZEND_DECLARE_MODULE_GLOBALS(cli_server);
+ZEND_DECLARE_MODULE_GLOBALS(cli_server)
 
 /* {{{ static char php_cli_server_css[]
  * copied from ext/standard/info.c
@@ -1978,7 +1978,7 @@ static int php_cli_server_send_error_page(php_cli_server *server, php_cli_server
 	php_cli_server_content_sender_ctor(&client->content_sender);
 	client->content_sender_initialized = 1;
 
-	escaped_request_uri = php_escape_html_entities_ex((unsigned char *)client->request.request_uri, client->request.request_uri_len, 0, ENT_QUOTES, NULL, 0);
+	escaped_request_uri = php_escape_html_entities_ex((unsigned char *)client->request.request_uri, client->request.request_uri_len, 0, ENT_QUOTES, NULL, /* double_encode */ 0, /* quiet */ 0);
 
 	{
 		static const char prologue_template[] = "<!doctype html><html><head><title>%d %s</title>";

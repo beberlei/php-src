@@ -324,6 +324,14 @@ static zend_always_inline void zend_hash_iterators_update(HashTable *ht, HashPos
 	}
 }
 
+static zend_always_inline void zend_array_release(zend_array *array)
+{
+	if (!(GC_FLAGS(array) & IS_ARRAY_IMMUTABLE)) {
+		if (GC_DELREF(array) == 0) {
+			zend_array_destroy(array);
+		}
+	}
+}
 
 END_EXTERN_C()
 
@@ -847,6 +855,14 @@ static zend_always_inline void *zend_hash_str_find_ptr(const HashTable *ht, cons
 	}
 }
 
+/* Will lowercase the str; use only if you don't need the lowercased string for
+ * anything else. If you have a lowered string, use zend_hash_str_find_ptr. */
+ZEND_API void *zend_hash_str_find_ptr_lc(const HashTable *ht, const char *str, size_t len);
+
+/* Will lowercase the str; use only if you don't need the lowercased string for
+ * anything else. If you have a lowered string, use zend_hash_find_ptr. */
+ZEND_API void *zend_hash_find_ptr_lc(const HashTable *ht, zend_string *key);
+
 static zend_always_inline void *zend_hash_index_find_ptr(const HashTable *ht, zend_ulong h)
 {
 	zval *zv;
@@ -1112,11 +1128,15 @@ static zend_always_inline void *zend_hash_get_current_data_ptr_ex(HashTable *ht,
 		ZEND_HASH_FILL_NEXT(); \
 	} while (0)
 
-#define ZEND_HASH_FILL_END() \
+#define ZEND_HASH_FILL_FINISH() do { \
 		__fill_ht->nNumUsed = __fill_idx; \
 		__fill_ht->nNumOfElements = __fill_idx; \
 		__fill_ht->nNextFreeElement = __fill_idx; \
 		__fill_ht->nInternalPointer = 0; \
+	} while (0)
+
+#define ZEND_HASH_FILL_END() \
+		ZEND_HASH_FILL_FINISH(); \
 	} while (0)
 
 static zend_always_inline zval *_zend_hash_append_ex(HashTable *ht, zend_string *key, zval *zv, int interned)
