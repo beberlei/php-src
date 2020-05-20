@@ -2367,7 +2367,7 @@ static inline zend_bool zend_is_variable_or_call(zend_ast *ast) /* {{{ */
 static inline zend_bool zend_is_unticked_stmt(zend_ast *ast) /* {{{ */
 {
 	return ast->kind == ZEND_AST_STMT_LIST || ast->kind == ZEND_AST_LABEL
-		|| ast->kind == ZEND_AST_PROP_DECL || ast->kind == ZEND_AST_CLASS_CONST_DECL_ATTRIBUTES
+		|| ast->kind == ZEND_AST_PROP_DECL || ast->kind == ZEND_AST_CLASS_CONST_GROUP
 		|| ast->kind == ZEND_AST_USE_TRAIT || ast->kind == ZEND_AST_METHOD;
 }
 /* }}} */
@@ -6520,8 +6520,6 @@ void zend_compile_prop_decl(zend_ast *ast, zend_ast *type_ast, uint32_t flags, H
 		}
 
 		zend_declare_typed_property(ce, name, &value_zv, flags, doc_comment, attributes, type);
-
-		attributes = NULL;
 	}
 }
 /* }}} */
@@ -6534,6 +6532,11 @@ void zend_compile_prop_group(zend_ast *list) /* {{{ */
 	zend_ast *prop_ast = list->child[1];
 
 	if (list->child[2]) {
+		if (zend_ast_get_list(prop_ast)->children > 1) {
+			zend_error_noreturn(E_COMPILE_ERROR, "Cannot apply attributes to a group of properties");
+			return;
+		}
+
 		attributes = create_attribute_array();
 		zend_compile_attributes(attributes, list->child[2], 0, ZEND_ATTRIBUTE_TARGET_PROPERTY);
 	}
@@ -6567,6 +6570,11 @@ void zend_compile_class_const_decl(zend_ast *ast, zend_ast *attr_ast) /* {{{ */
 	}
 
 	if (attr_ast) {
+		if (list->children > 1) {
+			zend_error_noreturn(E_COMPILE_ERROR, "Cannot apply attributes to a group of constants");
+			return;
+		}
+
 		attributes = create_attribute_array();
 		zend_compile_attributes(attributes, attr_ast, 0, ZEND_ATTRIBUTE_TARGET_CLASS_CONST);
 	}
@@ -6586,8 +6594,6 @@ void zend_compile_class_const_decl(zend_ast *ast, zend_ast *attr_ast) /* {{{ */
 
 		zend_const_expr_to_zval(&value_zv, value_ast);
 		zend_declare_class_constant_ex(ce, name, &value_zv, ast->attr, doc_comment, attributes);
-
-		attributes = NULL;
 	}
 }
 /* }}} */
@@ -8885,7 +8891,7 @@ void zend_compile_stmt(zend_ast *ast) /* {{{ */
 		case ZEND_AST_PROP_GROUP:
 			zend_compile_prop_group(ast);
 			break;
-		case ZEND_AST_CLASS_CONST_DECL_ATTRIBUTES:
+		case ZEND_AST_CLASS_CONST_GROUP:
 			zend_compile_class_const_decl(ast->child[0], ast->child[1]);
 			break;
 		case ZEND_AST_USE_TRAIT:
