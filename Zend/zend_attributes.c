@@ -3,7 +3,6 @@
 #include "zend_attributes.h"
 
 ZEND_API zend_class_entry *zend_ce_php_attribute;
-ZEND_API zend_class_entry *zend_ce_php_compiler_attribute;
 
 static HashTable internal_validators;
 
@@ -12,11 +11,6 @@ void zend_attribute_validate_phpattribute(zend_attribute *attr, int target)
 	if (target != ZEND_ATTRIBUTE_TARGET_CLASS) {
 		zend_error(E_COMPILE_ERROR, "Only classes can be marked with <<PhpAttribute>>");
 	}
-}
-
-void zend_attribute_validate_phpcompilerattribute(zend_attribute *attr, int target)
-{
-	zend_error(E_COMPILE_ERROR, "The PhpCompilerAttribute can only be used by internal classes, use PhpAttribute instead");
 }
 
 ZEND_API zend_attributes_internal_validator zend_attribute_get_validator(zend_string *lcname)
@@ -109,10 +103,4 @@ void zend_register_attribute_ce(void)
 	zend_ce_php_attribute->ce_flags |= ZEND_ACC_FINAL;
 
 	zend_compiler_attribute_register(zend_ce_php_attribute, zend_attribute_validate_phpattribute);
-
-	INIT_CLASS_ENTRY(ce, "PhpCompilerAttribute", NULL);
-	zend_ce_php_compiler_attribute = zend_register_internal_class(&ce);
-	zend_ce_php_compiler_attribute->ce_flags |= ZEND_ACC_FINAL;
-
-	zend_compiler_attribute_register(zend_ce_php_compiler_attribute, zend_attribute_validate_phpcompilerattribute);
 }

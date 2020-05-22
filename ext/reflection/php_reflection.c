@@ -6623,7 +6623,6 @@ ZEND_METHOD(ReflectionAttribute, newInstance)
 	RETURN_ZVAL(&obj, 1, 1);
 }
 /* }}} */
-
 static const zend_function_entry reflection_ext_functions[] = { /* {{{ */
 	PHP_FE_END
 }; /* }}} */
