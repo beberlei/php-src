@@ -31,6 +31,7 @@
 #include "zend_virtual_cwd.h"
 #include "ext/standard/info.h"
 #include "ext/standard/php_filestat.h"
+#include "Zend/zend_attributes.h"
 #include "opcache_arginfo.h"
 
 #if HAVE_JIT
@@ -320,11 +321,34 @@ static ZEND_NAMED_FUNCTION(accel_is_readable)
 	}
 }
 
+void zend_jit_validate_opcache_attribute(zend_attribute *jit, int target)
+{
+	if (target != ZEND_ATTRIBUTE_TARGET_METHOD && target != ZEND_ATTRIBUTE_TARGET_FUNCTION) {
+		zend_error(E_COMPILE_ERROR, "<<Opcache\\Jit>> attribute can only be declared on methods or functions");
+	}
+
+	if (jit->argc > 1) {
+		zend_error(E_COMPILE_ERROR, "<<Opcache\\Jit>> requires zero or one argument, %d arguments given", jit->argc);
+	}
+
+	if (jit->argc == 1 && Z_TYPE(jit->argv[0]) != IS_TRUE && Z_TYPE(jit->argv[0]) != IS_FALSE) {
+		zend_error(E_COMPILE_ERROR, "<<Opcache\\Jit>> first argument $enabled must be a boolean");
+	}
+}
+
 static ZEND_MINIT_FUNCTION(zend_accelerator)
 {
 	(void)type; /* keep the compiler happy */
+	zend_class_entry ce;
 
 	REGISTER_INI_ENTRIES();
+
+	INIT_NS_CLASS_ENTRY(ce, "Opcache", "Jit", NULL);
+	zend_ce_opcache_jit_attribute = zend_register_internal_class(&ce);
+	zend_ce_opcache_jit_attribute->ce_flags |= ZEND_ACC_FINAL;
+
+	zend_compiler_attribute_register(zend_ce_opcache_jit_attribute, &zend_jit_validate_opcache_attribute);
+
 
 	return SUCCESS;
 }

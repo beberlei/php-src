@@ -23,6 +23,7 @@
 #include "Zend/zend_exceptions.h"
 #include "Zend/zend_constants.h"
 #include "zend_smart_str.h"
+#include "Zend/zend_attributes.h"
 #include "jit/zend_jit.h"
 
 #ifdef HAVE_JIT
@@ -3243,21 +3244,38 @@ static int zend_jit_setup_hot_counters(zend_op_array *op_array)
 	return SUCCESS;
 }
 
+static int zend_disable_jit(const zend_op_array *op_array)
+{
+	zend_attribute *jit = zend_get_attribute_str(op_array->attributes, "opcache\\jit", sizeof("opcache\\jit")-1, 0);
+
+	if (jit == NULL || jit->argc == 0) {
+		return 0;
+	}
+
+	if (Z_TYPE(jit->argv[0]) == IS_FALSE) {
+		return 1;
+	}
+
+	return 0;
+}
+
 static int zend_needs_manual_jit(const zend_op_array *op_array)
 {
-	if (op_array->doc_comment) {
-		const char *s = ZSTR_VAL(op_array->doc_comment);
-		const char *p = strstr(s, "@jit");
+	zend_attribute *jit = zend_get_attribute_str(op_array->attributes, "opcache\\jit", sizeof("opcache\\jit")-1, 0);
 
-		if (p) {
-			size_t l = ZSTR_LEN(op_array->doc_comment);
+	if (jit == NULL) {
+		return 0;
+	}
 
-			if ((p == s + 3 || *(p-1) <= ' ') &&
-			    (p + 6 == s + l || *(p+4) <= ' ')) {
-				return 1;
-			}
+	if (jit->argc == 0) {
+		return 1;
+	} else if (jit->argc == 1) {
+		// todo: evaluate "trueish"?
+		if (Z_TYPE(jit->argv[0]) == IS_TRUE) {
+			return 1;
 		}
 	}
+
 	return 0;
 }
 
@@ -3267,6 +3285,14 @@ ZEND_EXT_API int zend_jit_op_array(zend_op_array *op_array, zend_script *script)
 {
 	if (dasm_ptr == NULL) {
 		return FAILURE;
+	}
+
+	if (zend_disable_jit(op_array) == 1) {
+		return SUCCESS;
+	}
+
+	if (zend_needs_manual_jit(op_array) == 1) {
+		return zend_real_jit_func(op_array, script, NULL);
 	}
 
 	if (zend_jit_trigger == ZEND_JIT_ON_FIRST_EXEC) {
@@ -3304,12 +3330,6 @@ ZEND_EXT_API int zend_jit_op_array(zend_op_array *op_array, zend_script *script)
 		return zend_jit_setup_hot_trace_counters(op_array);
 	} else if (zend_jit_trigger == ZEND_JIT_ON_SCRIPT_LOAD) {
 		return zend_real_jit_func(op_array, script, NULL);
-	} else if (zend_jit_trigger == ZEND_JIT_ON_DOC_COMMENT) {
-		if (zend_needs_manual_jit(op_array)) {
-			return zend_real_jit_func(op_array, script, NULL);
-		} else {
-			return SUCCESS;
-		}
 	} else {
 		ZEND_ASSERT(0);
 	}
@@ -3345,10 +3365,9 @@ ZEND_EXT_API int zend_jit_script(zend_script *script)
 				goto jit_failure;
 			}
 		}
-	} else if (zend_jit_trigger == ZEND_JIT_ON_SCRIPT_LOAD ||
-	           zend_jit_trigger == ZEND_JIT_ON_DOC_COMMENT) {
+	} else if (zend_jit_trigger == ZEND_JIT_ON_SCRIPT_LOAD || zend_jit_trigger == ZEND_JIT_ON_ATTRIBUTE) {
 
-		if (zend_jit_trigger == ZEND_JIT_ON_DOC_COMMENT) {
+		if (zend_jit_trigger == ZEND_JIT_ON_ATTRIBUTE) {
 			int do_jit = 0;
 			for (i = 0; i < call_graph.op_arrays_count; i++) {
 				if (zend_needs_manual_jit(call_graph.op_arrays[i])) {
@@ -3360,6 +3379,7 @@ ZEND_EXT_API int zend_jit_script(zend_script *script)
 				goto jit_failure;
 			}
 		}
+
 		for (i = 0; i < call_graph.op_arrays_count; i++) {
 			info = ZEND_FUNC_INFO(call_graph.op_arrays[i]);
 			if (info) {
@@ -3381,10 +3401,12 @@ ZEND_EXT_API int zend_jit_script(zend_script *script)
 		}
 
 		for (i = 0; i < call_graph.op_arrays_count; i++) {
-			if (zend_jit_trigger == ZEND_JIT_ON_DOC_COMMENT &&
-			    !zend_needs_manual_jit(call_graph.op_arrays[i])) {
+			if (zend_jit_trigger == ZEND_JIT_ON_SCRIPT_LOAD && zend_disable_jit(call_graph.op_arrays[i])) {
+				continue;
+			} else if (zend_jit_trigger == ZEND_JIT_ON_ATTRIBUTE && !zend_needs_manual_jit(call_graph.op_arrays[i])) {
 				continue;
 			}
+
 			info = ZEND_FUNC_INFO(call_graph.op_arrays[i]);
 			if (info) {
 				if (zend_jit_op_array_analyze2(call_graph.op_arrays[i], script, &info->ssa) != SUCCESS) {
@@ -3396,10 +3418,12 @@ ZEND_EXT_API int zend_jit_script(zend_script *script)
 
 		if (ZCG(accel_directives).jit_debug & ZEND_JIT_DEBUG_SSA) {
 			for (i = 0; i < call_graph.op_arrays_count; i++) {
-				if (zend_jit_trigger == ZEND_JIT_ON_DOC_COMMENT &&
-				    !zend_needs_manual_jit(call_graph.op_arrays[i])) {
+				if (zend_jit_trigger == ZEND_JIT_ON_SCRIPT_LOAD && zend_disable_jit(call_graph.op_arrays[i])) {
+					continue;
+				} else if (zend_jit_trigger == ZEND_JIT_ON_ATTRIBUTE && !zend_needs_manual_jit(call_graph.op_arrays[i])) {
 					continue;
 				}
+
 				info = ZEND_FUNC_INFO(call_graph.op_arrays[i]);
 				if (info) {
 					zend_dump_op_array(call_graph.op_arrays[i], ZEND_DUMP_HIDE_UNREACHABLE|ZEND_DUMP_RC_INFERENCE|ZEND_DUMP_SSA, "JIT", &info->ssa);
@@ -3408,10 +3432,12 @@ ZEND_EXT_API int zend_jit_script(zend_script *script)
 		}
 
 		for (i = 0; i < call_graph.op_arrays_count; i++) {
-			if (zend_jit_trigger == ZEND_JIT_ON_DOC_COMMENT &&
-			    !zend_needs_manual_jit(call_graph.op_arrays[i])) {
+			if (zend_jit_trigger == ZEND_JIT_ON_SCRIPT_LOAD && zend_disable_jit(call_graph.op_arrays[i])) {
+				continue;
+			} else if (zend_jit_trigger == ZEND_JIT_ON_ATTRIBUTE && !zend_needs_manual_jit(call_graph.op_arrays[i])) {
 				continue;
 			}
+
 			info = ZEND_FUNC_INFO(call_graph.op_arrays[i]);
 			if (info) {
 				if (zend_jit(call_graph.op_arrays[i], &info->ssa, NULL) != SUCCESS) {
@@ -3587,7 +3613,6 @@ static void zend_jit_globals_ctor(zend_jit_globals *jit_globals)
 ZEND_EXT_API int zend_jit_startup(zend_long jit, void *buf, size_t size, zend_bool reattached)
 {
 	int ret;
-
 #ifdef ZTS
 	zend_jit_globals_id = ts_allocate_id(&zend_jit_globals_id, sizeof(zend_jit_globals), (ts_allocate_ctor) zend_jit_globals_ctor, NULL);
 #else

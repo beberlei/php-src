@@ -32,7 +32,7 @@
 #define ZEND_JIT_ON_FIRST_EXEC     1
 #define ZEND_JIT_ON_PROF_REQUEST   2     /* compile the most frequently caled on first request functions */
 #define ZEND_JIT_ON_HOT_COUNTERS   3     /* compile functions after N calls or loop iterations */
-#define ZEND_JIT_ON_DOC_COMMENT    4     /* compile functions with "@jit" tag in doc-comments */
+#define ZEND_JIT_ON_ATTRIBUTE      4     /* compile functions with "Opcache\Jit" attribute */
 #define ZEND_JIT_ON_HOT_TRACE      5     /* trace functions after N calls or loop iterations */
 
 #define ZEND_JIT_TRIGGER(n)        (((n) / 10) % 10)
@@ -128,5 +128,7 @@ struct _zend_lifetime_interval {
 	zend_lifetime_interval *used_as_hint;
 	zend_lifetime_interval *list_next;
 };
+
+zend_class_entry *zend_ce_opcache_jit_attribute;
 
 #endif /* HAVE_JIT_H */
