@@ -457,8 +457,8 @@ static void zend_persist_class_entry_calc(zval *zv)
 		if (ZCG(accel_directives).save_comments && ce->info.user.doc_comment) {
 			ADD_STRING(ce->info.user.doc_comment);
 		}
-		if (ce->info.user.attributes) {
-			zend_persist_attributes_calc(ce->info.user.attributes);
+		if (ce->attributes) {
+			zend_persist_attributes_calc(ce->attributes);
 		}
 
 		zend_hash_persist_calc(&ce->properties_info);

@@ -170,6 +170,7 @@ struct _zend_class_entry {
 	zend_class_name *trait_names;
 	zend_trait_alias **trait_aliases;
 	zend_trait_precedence **trait_precedences;
+	HashTable *attributes;
 
 	union {
 		struct {
@@ -177,7 +178,6 @@ struct _zend_class_entry {
 			uint32_t line_start;
 			uint32_t line_end;
 			zend_string *doc_comment;
-			HashTable *attributes;
 		} user;
 		struct {
 			const struct _zend_function_entry *builtin_functions;

@@ -14,7 +14,6 @@
 BEGIN_EXTERN_C()
 
 extern ZEND_API zend_class_entry *zend_ce_php_attribute;
-extern ZEND_API zend_class_entry *zend_ce_php_compiler_attribute;
 
 typedef struct _zend_attribute {
 	zend_string *name;

@@ -866,8 +866,8 @@ static void zend_persist_class_entry(zval *zv)
 				ce->info.user.doc_comment = NULL;
 			}
 		}
-		if (ce->info.user.attributes) {
-			ce->info.user.attributes = zend_persist_attributes(ce->info.user.attributes);
+		if (ce->attributes) {
+			ce->attributes = zend_persist_attributes(ce->attributes);
 		}
 		zend_hash_persist(&ce->properties_info);
 		ZEND_HASH_FOREACH_BUCKET(&ce->properties_info, p) {

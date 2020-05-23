@@ -1092,6 +1092,8 @@ static void reflection_attribute_factory(zval *object, zend_attribute *data, zen
 static int read_attributes(zval *ret, HashTable *attributes, zend_class_entry *scope,
 		uint32_t offset, zend_string *name, zend_class_entry *base) /* {{{ */
 {
+	ZEND_ASSERT(attributes != NULL);
+
 	zend_attribute *attr;
 	zval tmp;
 
@@ -4176,17 +4178,9 @@ ZEND_METHOD(ReflectionClass, getAttributes)
 	reflection_object *intern;
 	zend_class_entry *ce;
 
-	HashTable *attributes = NULL;
-	zend_class_entry *scope = NULL;
-
 	GET_REFLECTION_OBJECT_PTR(ce);
 
-	if (ce->type == ZEND_USER_CLASS && ce->info.user.attributes) {
-		attributes = ce->info.user.attributes;
-		scope = ce;
-	}
-
-	reflect_attributes(INTERNAL_FUNCTION_PARAM_PASSTHRU, attributes, 0, scope);
+	reflect_attributes(INTERNAL_FUNCTION_PARAM_PASSTHRU, ce->attributes, 0, ce);
 }
 /* }}} */
 
@@ -6582,11 +6576,8 @@ ZEND_METHOD(ReflectionAttribute, newInstance)
 		RETURN_THROWS();
 	}
 
-	if (ce->type == ZEND_USER_CLASS && !zend_get_attribute_str(ce->info.user.attributes, ZEND_STRL("phpattribute"))) {
+	if (!zend_get_attribute_str(ce->attributes, ZEND_STRL("phpattribute"))) {
 		zend_throw_error(NULL, "Attempting to use class '%s' as attribute that does not have <<PhpAttribute>>.", ZSTR_VAL(attr->data->name));
-		RETURN_THROWS();
-	} else if (ce->type == ZEND_INTERNAL_CLASS && !zend_attribute_get_validator(attr->data->lcname)) {
-		zend_throw_error(NULL, "Attempting to use internal class '%s' as attribute that does not have <<PhpCompilerAttribute>>.", ZSTR_VAL(attr->data->name));
 		RETURN_THROWS();
 	}
 
@@ -6623,7 +6614,6 @@ ZEND_METHOD(ReflectionAttribute, newInstance)
 	RETURN_ZVAL(&obj, 1, 1);
 }
 /* }}} */
-
 static const zend_function_entry reflection_ext_functions[] = { /* {{{ */
 	PHP_FE_END
 }; /* }}} */
