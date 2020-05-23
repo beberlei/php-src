@@ -357,8 +357,8 @@ ZEND_API void destroy_zend_class(zval *zv)
 			if (ce->info.user.doc_comment) {
 				zend_string_release_ex(ce->info.user.doc_comment, 0);
 			}
-			if (ce->info.user.attributes) {
-				zend_array_release(ce->info.user.attributes);
+			if (ce->attributes) {
+				zend_array_release(ce->attributes);
 			}
 
 			if (ce->num_traits > 0) {

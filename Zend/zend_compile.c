@@ -1813,7 +1813,7 @@ ZEND_API void zend_initialize_class_data(zend_class_entry *ce, zend_bool nullify
 	} else {
 		ZEND_MAP_PTR_INIT(ce->static_members_table, &ce->default_static_members_table);
 		ce->info.user.doc_comment = NULL;
-		ce->info.user.attributes = NULL;
+		ce->attributes = NULL;
 	}
 
 	ce->default_properties_count = 0;
@@ -6800,8 +6800,8 @@ void zend_compile_class_decl(znode *result, zend_ast *ast, zend_bool toplevel) /
 		ce->info.user.doc_comment = zend_string_copy(decl->doc_comment);
 	}
 	if (decl->attributes) {
-		ce->info.user.attributes = create_attribute_array();
-		zend_compile_attributes(ce->info.user.attributes, decl->attributes, 0, ZEND_ATTRIBUTE_TARGET_CLASS);
+		ce->attributes = create_attribute_array();
+		zend_compile_attributes(ce->attributes, decl->attributes, 0, ZEND_ATTRIBUTE_TARGET_CLASS);
 	}
 
 	if (UNEXPECTED((decl->flags & ZEND_ACC_ANON_CLASS))) {

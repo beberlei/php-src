@@ -84,12 +84,38 @@ ZEND_API zend_attribute *zend_get_parameter_attribute_str(HashTable *attributes,
 	return get_attribute_str(attributes, str, len, offset + 1);
 }
 
+static void attribute_ptr_dtor(zval *v) /* {{{ */
+{
+	zend_attribute_free((zend_attribute *) Z_PTR_P(v));
+}
+/* }}} */
+
 ZEND_API void zend_compiler_attribute_register(zend_class_entry *ce, zend_attributes_internal_validator validator)
 {
+	if (ce->type != ZEND_INTERNAL_CLASS) {
+		return;
+	}
+
 	zend_string *lcname = zend_string_tolower_ex(ce->name, 1);
+	zval tmp;
 
 	zend_hash_update_ptr(&internal_validators, lcname, validator);
 	zend_string_release(lcname);
+
+	if (ce->attributes == NULL) {
+		ce->attributes = pemalloc(sizeof(HashTable), 1);
+		zend_hash_init(ce->attributes, 8, NULL, attribute_ptr_dtor, 1);
+	}
+
+	zend_attribute *attr = emalloc(ZEND_ATTRIBUTE_SIZE(0));
+
+	attr->name = zend_string_copy(zend_ce_php_attribute->name);
+	attr->lcname = zend_string_tolower(attr->name);
+	attr->offset = 0;
+	attr->argc = 0;
+
+	ZVAL_PTR(&tmp, attr);
+	zend_hash_next_index_insert(ce->attributes, &tmp);
 }
 
 void zend_register_attribute_ce(void)
