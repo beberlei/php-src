@@ -7,10 +7,10 @@ Attributes can be placed on all supported elements.
 class Foo
 {
     <<A1(2)>>
-    public const FOO = 'foo', BAR = 'bar';
+    public const FOO = 'foo';
     
     <<A1(3)>>
-    public $x, $y;
+    public $x;
     
     <<A1(4)>>
     public function foo(<<A1(5)>> $a, <<A1(6)>> $b) { }
@@ -30,9 +30,7 @@ $ref = new \ReflectionClass(Foo::class);
 $sources = [
     $ref,
     $ref->getReflectionConstant('FOO'),
-    $ref->getReflectionConstant('BAR'),
     $ref->getProperty('x'),
-    $ref->getProperty('y'),
     $ref->getMethod('foo'),
     $ref->getMethod('foo')->getParameters()[0],
     $ref->getMethod('foo')->getParameters()[1],
@@ -71,9 +69,6 @@ array(1) {
   int(2)
 }
 
-string(23) "ReflectionClassConstant"
-int(0)
-
 string(18) "ReflectionProperty"
 int(1)
 string(2) "A1"
@@ -81,9 +76,6 @@ array(1) {
   [0]=>
   int(3)
 }
-
-string(18) "ReflectionProperty"
-int(0)
 
 string(16) "ReflectionMethod"
 int(1)

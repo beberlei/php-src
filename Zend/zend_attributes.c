@@ -38,7 +38,7 @@ ZEND_API void zend_attribute_free(zend_attribute *attr)
 	efree(attr);
 }
 
-ZEND_API zend_attribute *zend_get_attribute(HashTable *attributes, zend_string *lcname, uint32_t offset)
+static zend_attribute *get_attribute(HashTable *attributes, zend_string *lcname, uint32_t offset)
 {
 	if (attributes) {
 		zend_attribute *attr;
@@ -53,7 +53,7 @@ ZEND_API zend_attribute *zend_get_attribute(HashTable *attributes, zend_string *
 	return NULL;
 }
 
-ZEND_API zend_attribute *zend_get_attribute_str(HashTable *attributes, const char *str, size_t len, uint32_t offset)
+static zend_attribute *get_attribute_str(HashTable *attributes, const char *str, size_t len, uint32_t offset)
 {
 	if (attributes) {
 		zend_attribute *attr;
@@ -68,6 +68,26 @@ ZEND_API zend_attribute *zend_get_attribute_str(HashTable *attributes, const cha
 	}
 
 	return NULL;
+}
+
+ZEND_API zend_attribute *zend_get_attribute(HashTable *attributes, zend_string *lcname)
+{
+	return get_attribute(attributes, lcname, 0);
+}
+
+ZEND_API zend_attribute *zend_get_attribute_str(HashTable *attributes, const char *str, size_t len)
+{
+	return get_attribute_str(attributes, str, len, 0);
+}
+
+ZEND_API zend_attribute *zend_get_parameter_attribute(HashTable *attributes, zend_string *lcname, uint32_t offset)
+{
+	return get_attribute(attributes, lcname, offset + 1);
+}
+
+ZEND_API zend_attribute *zend_get_parameter_attribute_str(HashTable *attributes, const char *str, size_t len, uint32_t offset)
+{
+	return get_attribute_str(attributes, str, len, offset + 1);
 }
 
 ZEND_API void zend_compiler_attribute_register(zend_class_entry *ce, zend_attributes_internal_validator validator)

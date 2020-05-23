@@ -1590,7 +1590,7 @@ simple_list:
 		case ZEND_AST_CLASS_CONST_DECL:
 			smart_str_appends(str, "const ");
 			goto simple_list;
-		case ZEND_AST_CLASS_CONST_DECL_ATTRIBUTES:
+		case ZEND_AST_CLASS_CONST_GROUP:
 			if (ast->child[1]) {
 				zend_ast_export_attributes(str, ast->child[1], indent, 1);
 			}
@@ -2192,7 +2192,7 @@ zend_ast * ZEND_FASTCALL zend_ast_with_attributes(zend_ast *ast, zend_ast *attr)
 	case ZEND_AST_PARAM:
 		ast->child[3] = attr;
 		break;
-	case ZEND_AST_CLASS_CONST_DECL_ATTRIBUTES:
+	case ZEND_AST_CLASS_CONST_GROUP:
 		ast->child[1] = attr;
 		break;
 	EMPTY_SWITCH_DEFAULT_CASE()

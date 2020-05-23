@@ -19,6 +19,7 @@ extern ZEND_API zend_class_entry *zend_ce_php_compiler_attribute;
 typedef struct _zend_attribute {
 	zend_string *name;
 	zend_string *lcname;
+	/* Parameter offsets start at 1, everything else uses 0. */
 	uint32_t offset;
 	uint32_t argc;
 	zval argv[1];
@@ -28,8 +29,11 @@ typedef void (*zend_attributes_internal_validator)(zend_attribute *attr, int tar
 
 ZEND_API void zend_attribute_free(zend_attribute *attr);
 
-ZEND_API zend_attribute *zend_get_attribute(HashTable *attributes, zend_string *lcname, uint32_t offset);
-ZEND_API zend_attribute *zend_get_attribute_str(HashTable *attributes, const char *str, size_t len, uint32_t offset);
+ZEND_API zend_attribute *zend_get_attribute(HashTable *attributes, zend_string *lcname);
+ZEND_API zend_attribute *zend_get_attribute_str(HashTable *attributes, const char *str, size_t len);
+
+ZEND_API zend_attribute *zend_get_parameter_attribute(HashTable *attributes, zend_string *lcname, uint32_t offset);
+ZEND_API zend_attribute *zend_get_parameter_attribute_str(HashTable *attributes, const char *str, size_t len, uint32_t offset);
 
 ZEND_API void zend_compiler_attribute_register(zend_class_entry *ce, zend_attributes_internal_validator validator);
 ZEND_API zend_attributes_internal_validator zend_attribute_get_validator(zend_string *lcname);

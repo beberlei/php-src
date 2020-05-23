@@ -6582,7 +6582,7 @@ ZEND_METHOD(ReflectionAttribute, newInstance)
 		RETURN_THROWS();
 	}
 
-	if (ce->type == ZEND_USER_CLASS && !zend_get_attribute_str(ce->info.user.attributes, ZEND_STRL("phpattribute"), 0)) {
+	if (ce->type == ZEND_USER_CLASS && !zend_get_attribute_str(ce->info.user.attributes, ZEND_STRL("phpattribute"))) {
 		zend_throw_error(NULL, "Attempting to use class '%s' as attribute that does not have <<PhpAttribute>>.", ZSTR_VAL(attr->data->name));
 		RETURN_THROWS();
 	} else if (ce->type == ZEND_INTERNAL_CLASS && !zend_attribute_get_validator(attr->data->lcname)) {
