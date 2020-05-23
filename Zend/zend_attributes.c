@@ -93,7 +93,7 @@ static void attribute_ptr_dtor(zval *v) /* {{{ */
 ZEND_API void zend_compiler_attribute_register(zend_class_entry *ce, zend_attributes_internal_validator validator)
 {
 	if (ce->type != ZEND_INTERNAL_CLASS) {
-		return;
+		zend_error_noreturn(E_ERROR, "Only internal classes can be registered as compiler attribute");
 	}
 
 	zend_string *lcname = zend_string_tolower_ex(ce->name, 1);
@@ -107,10 +107,10 @@ ZEND_API void zend_compiler_attribute_register(zend_class_entry *ce, zend_attrib
 		zend_hash_init(ce->attributes, 8, NULL, attribute_ptr_dtor, 1);
 	}
 
-	zend_attribute *attr = emalloc(ZEND_ATTRIBUTE_SIZE(0));
+	zend_attribute *attr = pemalloc(ZEND_ATTRIBUTE_SIZE(0), 1);
 
 	attr->name = zend_string_copy(zend_ce_php_attribute->name);
-	attr->lcname = zend_string_tolower(attr->name);
+	attr->lcname = zend_string_tolower_ex(attr->name, 1);
 	attr->offset = 0;
 	attr->argc = 0;
 

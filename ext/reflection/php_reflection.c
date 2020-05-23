@@ -1092,6 +1092,8 @@ static void reflection_attribute_factory(zval *object, zend_attribute *data, zen
 static int read_attributes(zval *ret, HashTable *attributes, zend_class_entry *scope,
 		uint32_t offset, zend_string *name, zend_class_entry *base) /* {{{ */
 {
+	ZEND_ASSERT(attributes != NULL);
+
 	zend_attribute *attr;
 	zval tmp;
 
@@ -1107,10 +1109,6 @@ static int read_attributes(zval *ret, HashTable *attributes, zend_class_entry *s
 		} ZEND_HASH_FOREACH_END();
 
 		zend_string_release(filter);
-		return SUCCESS;
-	}
-
-	if (!attributes) {
 		return SUCCESS;
 	}
 
@@ -4180,15 +4178,9 @@ ZEND_METHOD(ReflectionClass, getAttributes)
 	reflection_object *intern;
 	zend_class_entry *ce;
 
-	HashTable *attributes = NULL;
-	zend_class_entry *scope = NULL;
-
 	GET_REFLECTION_OBJECT_PTR(ce);
 
-	attributes = ce->attributes;
-	scope = ce;
-
-	reflect_attributes(INTERNAL_FUNCTION_PARAM_PASSTHRU, attributes, 0, scope);
+	reflect_attributes(INTERNAL_FUNCTION_PARAM_PASSTHRU, ce->attributes, 0, ce);
 }
 /* }}} */
 
