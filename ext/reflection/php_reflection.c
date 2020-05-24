@@ -1767,17 +1767,9 @@ ZEND_METHOD(ReflectionFunctionAbstract, getAttributes)
 	reflection_object *intern;
 	zend_function *fptr;
 
-	HashTable *attributes = NULL;
-	zend_class_entry *scope = NULL;
-
 	GET_REFLECTION_OBJECT_PTR(fptr);
 
-	if (fptr->type == ZEND_USER_FUNCTION && fptr->op_array.attributes) {
-		attributes = fptr->op_array.attributes;
-		scope = fptr->common.scope;
-	}
-
-	reflect_attributes(INTERNAL_FUNCTION_PARAM_PASSTHRU, attributes, 0, scope);
+	reflect_attributes(INTERNAL_FUNCTION_PARAM_PASSTHRU, fptr->common.attributes, 0, fptr->common.scope);
 }
 /* }}} */
 
@@ -2714,15 +2706,10 @@ ZEND_METHOD(ReflectionParameter, getAttributes)
 	reflection_object *intern;
 	parameter_reference *param;
 
-	HashTable *attributes = NULL;
-	zend_class_entry *scope = NULL;
-
 	GET_REFLECTION_OBJECT_PTR(param);
 
-	if (param->fptr->type == ZEND_USER_FUNCTION && param->fptr->op_array.attributes) {
-		attributes = param->fptr->op_array.attributes;
-		scope = param->fptr->common.scope;
-	}
+	HashTable *attributes = param->fptr->common.attributes;
+	zend_class_entry *scope = param->fptr->common.scope;
 
 	reflect_attributes(INTERNAL_FUNCTION_PARAM_PASSTHRU, attributes, param->offset + 1, scope);
 }
@@ -3790,17 +3777,9 @@ ZEND_METHOD(ReflectionClassConstant, getAttributes)
 	reflection_object *intern;
 	zend_class_constant *ref;
 
-	HashTable *attributes = NULL;
-	zend_class_entry *scope = NULL;
-
 	GET_REFLECTION_OBJECT_PTR(ref);
 
-	if (ref->attributes) {
-		attributes = ref->attributes;
-		scope = ref->ce;
-	}
-
-	reflect_attributes(INTERNAL_FUNCTION_PARAM_PASSTHRU, attributes, 0, scope);
+	reflect_attributes(INTERNAL_FUNCTION_PARAM_PASSTHRU, ref->attributes, 0, ref->ce);
 }
 /* }}} */
 
@@ -5691,17 +5670,9 @@ ZEND_METHOD(ReflectionProperty, getAttributes)
 	reflection_object *intern;
 	property_reference *ref;
 
-	HashTable *attributes = NULL;
-	zend_class_entry *scope = NULL;
-
 	GET_REFLECTION_OBJECT_PTR(ref);
 
-	if (ref->prop->attributes) {
-		attributes = ref->prop->attributes;
-		scope = ref->prop->ce;
-	}
-
-	reflect_attributes(INTERNAL_FUNCTION_PARAM_PASSTHRU, attributes, 0, scope);
+	reflect_attributes(INTERNAL_FUNCTION_PARAM_PASSTHRU, ref->prop->attributes, 0, ref->prop->ce);
 }
 /* }}} */
 

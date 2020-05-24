@@ -84,11 +84,10 @@ ZEND_API zend_attribute *zend_get_parameter_attribute_str(HashTable *attributes,
 	return get_attribute_str(attributes, str, len, offset + 1);
 }
 
-static void attribute_ptr_dtor(zval *v) /* {{{ */
+static void attribute_ptr_dtor(zval *v)
 {
 	zend_attribute_free((zend_attribute *) Z_PTR_P(v));
 }
-/* }}} */
 
 ZEND_API void zend_compiler_attribute_register(zend_class_entry *ce, zend_attributes_internal_validator validator)
 {

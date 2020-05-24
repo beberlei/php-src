@@ -137,9 +137,10 @@ ZEND_API const zend_internal_function zend_pass_function = {
 	0,                      /* num_args          */
 	0,                      /* required_num_args */
 	NULL,                   /* arg_info          */
+	NULL,                   /* attributes        */
 	ZEND_FN(pass),          /* handler           */
 	NULL,                   /* module            */
-	{NULL,NULL,NULL,NULL,NULL}   /* reserved          */
+	{NULL,NULL,NULL,NULL}   /* reserved          */
 };
 
 #define FREE_VAR_PTR_AND_EXTRACT_RESULT_IF_NECESSARY(free_var) do {			\
