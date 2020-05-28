@@ -1150,7 +1150,7 @@ static void reflect_attributes(INTERNAL_FUNCTION_PARAMETERS, HashTable *attribut
 	zend_long flags = 0;
 	zend_class_entry *base = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|Sl", &name, &flags) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|S!l", &name, &flags) == FAILURE) {
 		RETURN_THROWS();
 	}
 
@@ -6411,8 +6411,9 @@ ZEND_METHOD(ReflectionAttribute, getName)
 static zend_always_inline int import_attribute_value(zval *ret, zval *val, zend_class_entry *scope) /* {{{ */
 {
 	ZVAL_COPY_OR_DUP(ret, val);
+
 	if (Z_TYPE_P(val) == IS_CONSTANT_AST) {
-		if (FAILURE == zval_update_constant_ex(ret, scope)) {
+		if (SUCCESS != zval_update_constant_ex(ret, scope)) {
 			zval_ptr_dtor(ret);
 			return FAILURE;
 		}
