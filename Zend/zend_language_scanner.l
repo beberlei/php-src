@@ -1423,6 +1423,7 @@ NEWLINE ("\r"|"\n"|"\r\n")
 }
 
 <ST_IN_SCRIPTING>"@[" {
+	enter_nesting('[');
 	RETURN_TOKEN(T_ATTRIBUTE);
 }
 
