@@ -65,7 +65,7 @@ class C5
 	public function __construct() { }
 }
 
-$ref = new \ReflectionFunction(@[C5(MissingClass::SOME_CONST) function () { });
+$ref = new \ReflectionFunction(@[C5(MissingClass::SOME_CONST)] function () { });
 $attr = $ref->getAttributes();
 var_dump(count($attr));
 

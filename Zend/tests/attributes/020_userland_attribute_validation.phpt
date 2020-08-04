@@ -37,7 +37,7 @@ try {
 
 echo "\n";
 
-@[Attribute(Attribute::TARGET_CLASS | Attribute::IS_REPEATABLE)
+@[Attribute(Attribute::TARGET_CLASS | Attribute::IS_REPEATABLE)]
 class A2 { }
 
 $ref = new \ReflectionObject(new @[A2] @[A2] class() { });
@@ -56,13 +56,13 @@ string(2) "A1"
 bool(true)
 bool(false)
 string(7) "ERROR 1"
-string(70) "Attribute "A1]" cannot target class (allowed targets: function, method)"
+string(70) "Attribute "A1" cannot target class (allowed targets: function, method)"
 
 string(2) "A1"
 bool(true)
 bool(true)
 string(7) "ERROR 2"
-string(35) "Attribute "A1]" must not be repeated"
+string(35) "Attribute "A1" must not be repeated"
 
 string(2) "A2"
 bool(true)

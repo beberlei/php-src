@@ -26,7 +26,7 @@ foreach ($ref->getAttributes() as $attr) {
 
 echo "\n";
 
-$ref = new \ReflectionFunction(@[A1 function] () { });
+$ref = new \ReflectionFunction(@[A1] function () { });
 
 try {
 	$ref->getAttributes()[0]->newInstance();
@@ -75,7 +75,7 @@ echo "\n";
 @[Attribute]
 class A4 { }
 
-$ref = new \ReflectionFunction(@[A4(1) function () { });
+$ref = new \ReflectionFunction(@[A4(1)] function () { });
 
 try {
 	$ref->getAttributes()[0]->newInstance();
