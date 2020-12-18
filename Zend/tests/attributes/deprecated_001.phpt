@@ -18,8 +18,8 @@ test();
 test2();
 call_user_func("test");
 --EXPECTF--
-Deprecated: Function test is deprecated in %s
+Deprecated: Function test() is deprecated in %s
 
-Deprecated: Function test2 is deprecated use test() instead in %s
+Deprecated: Function test2() is deprecated, use test() instead in %s
 
-Deprecated: Function test is deprecated in %s
+Deprecated: Function test() is deprecated in %s
