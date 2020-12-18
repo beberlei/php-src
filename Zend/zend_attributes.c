@@ -24,6 +24,7 @@
 #include "zend_smart_str.h"
 
 ZEND_API zend_class_entry *zend_ce_attribute;
+ZEND_API zend_class_entry *zend_ce_deprecated_attribute;
 
 static HashTable internal_attributes;
 
@@ -52,6 +53,28 @@ void validate_attribute(zend_attribute *attr, uint32_t target, zend_class_entry 
 		}
 
 		zval_ptr_dtor(&flags);
+	}
+}
+
+void validate_deprecated_attribute(zend_attribute *attr, uint32_t target, zend_class_entry *scope)
+{
+	// TODO: More proper signature validation: Too many args, incorrect arg names.
+	if (attr->argc == 1) {
+		zval message;
+
+		/* As this is run in the middle of compilation, fetch the attribute value without
+		 * specifying a scope. The class is not fully linked yet, and we may seen an
+		 * inconsistent state. */
+		if (FAILURE == zend_get_attribute_value(&message, attr, 0, NULL)) {
+			return;
+		}
+
+		if (Z_TYPE(message) != IS_STRING) {
+			zend_error_noreturn(E_COMPILE_ERROR,
+				"Deprecated::__construct: Argument #1 ($message) must be of type string, %s given",
+				zend_zval_type_name(&message)
+			);
+		}
 	}
 }
 
@@ -289,6 +312,13 @@ void zend_register_attribute_ce(void)
 
 	attr = zend_internal_attribute_register(zend_ce_attribute, ZEND_ATTRIBUTE_TARGET_CLASS);
 	attr->validator = validate_attribute;
+
+	INIT_CLASS_ENTRY(ce, "Deprecated", NULL);
+	zend_ce_deprecated_attribute = zend_register_internal_class(&ce);
+	zend_ce_deprecated_attribute->ce_flags |= ZEND_ACC_FINAL;
+
+	attr = zend_internal_attribute_register(zend_ce_deprecated_attribute, ZEND_ATTRIBUTE_TARGET_FUNCTION | ZEND_ATTRIBUTE_TARGET_METHOD);
+	attr->validator = validate_deprecated_attribute;
 }
 
 void zend_attributes_shutdown(void)

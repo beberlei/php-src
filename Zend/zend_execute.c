@@ -1489,6 +1489,7 @@ static zend_never_inline ZEND_COLD void ZEND_FASTCALL zend_wrong_property_read(z
 
 ZEND_API ZEND_COLD void ZEND_FASTCALL zend_deprecated_function(const zend_function *fbc)
 {
+	php_printf("yay deprecated\n");
 	if (fbc->common.scope) {
 		zend_error(E_DEPRECATED, "Method %s::%s() is deprecated",
 			ZSTR_VAL(fbc->common.scope->name),
