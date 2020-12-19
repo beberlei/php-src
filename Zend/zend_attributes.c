@@ -90,6 +90,18 @@ ZEND_METHOD(Attribute, __construct)
 	ZVAL_LONG(OBJ_PROP_NUM(Z_OBJ_P(ZEND_THIS), 0), flags);
 }
 
+ZEND_METHOD(Deprecated, __construct)
+{
+	zend_string *message;
+
+	ZEND_PARSE_PARAMETERS_START(0, 1)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_STR(message)
+	ZEND_PARSE_PARAMETERS_END();
+
+	ZVAL_STR(OBJ_PROP_NUM(Z_OBJ_P(ZEND_THIS), 0), message);
+}
+
 static zend_attribute *get_attribute(HashTable *attributes, zend_string *lcname, uint32_t offset)
 {
 	if (attributes) {
@@ -313,9 +325,14 @@ void zend_register_attribute_ce(void)
 	attr = zend_internal_attribute_register(zend_ce_attribute, ZEND_ATTRIBUTE_TARGET_CLASS);
 	attr->validator = validate_attribute;
 
-	INIT_CLASS_ENTRY(ce, "Deprecated", NULL);
+	INIT_CLASS_ENTRY(ce, "Deprecated", class_Deprecated_methods);
 	zend_ce_deprecated_attribute = zend_register_internal_class(&ce);
 	zend_ce_deprecated_attribute->ce_flags |= ZEND_ACC_FINAL;
+
+	ZVAL_UNDEF(&tmp);
+	str = zend_string_init(ZEND_STRL("message"), 1);
+	zend_declare_typed_property(zend_ce_deprecated_attribute, str, &tmp, ZEND_ACC_PUBLIC, NULL, (zend_type) ZEND_TYPE_INIT_CODE(IS_STRING, 0, 0));
+	zend_string_release(str);
 
 	attr = zend_internal_attribute_register(zend_ce_deprecated_attribute, ZEND_ATTRIBUTE_TARGET_FUNCTION | ZEND_ATTRIBUTE_TARGET_METHOD);
 	attr->validator = validate_deprecated_attribute;
