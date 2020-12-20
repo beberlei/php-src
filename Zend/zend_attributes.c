@@ -70,11 +70,15 @@ void validate_deprecated_attribute(zend_attribute *attr, uint32_t target, zend_c
 		}
 
 		if (Z_TYPE(message) != IS_STRING) {
+			zval_ptr_dtor(&message);
+
 			zend_error_noreturn(E_COMPILE_ERROR,
 				"Deprecated::__construct: Argument #1 ($message) must be of type string, %s given",
 				zend_zval_type_name(&message)
 			);
 		}
+
+		zval_ptr_dtor(&message);
 	}
 }
 

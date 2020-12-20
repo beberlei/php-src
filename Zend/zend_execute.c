@@ -1518,6 +1518,8 @@ ZEND_API ZEND_COLD void ZEND_FASTCALL zend_deprecated_function(const zend_functi
 				ZSTR_VAL(message_suffix)
 			);
 		}
+
+		zend_string_release(message_suffix);
 	} else {
 		if (fbc->common.scope) {
 			zend_error(E_DEPRECATED, "Method %s::%s() is deprecated",
