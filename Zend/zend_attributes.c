@@ -96,14 +96,18 @@ ZEND_METHOD(Attribute, __construct)
 
 ZEND_METHOD(Deprecated, __construct)
 {
-	zend_string *message;
+	zend_string *message = NULL;
 
 	ZEND_PARSE_PARAMETERS_START(0, 1)
 		Z_PARAM_OPTIONAL
-		Z_PARAM_STR(message)
+		Z_PARAM_STR_OR_NULL(message)
 	ZEND_PARSE_PARAMETERS_END();
 
-	ZVAL_STR(OBJ_PROP_NUM(Z_OBJ_P(ZEND_THIS), 0), message);
+	if (message) {
+		ZVAL_STR(OBJ_PROP_NUM(Z_OBJ_P(ZEND_THIS), 0), message);
+	} else {
+		ZVAL_NULL(OBJ_PROP_NUM(Z_OBJ_P(ZEND_THIS), 0));
+	}
 }
 
 static zend_attribute *get_attribute(HashTable *attributes, zend_string *lcname, uint32_t offset)
@@ -335,7 +339,7 @@ void zend_register_attribute_ce(void)
 
 	ZVAL_UNDEF(&tmp);
 	str = zend_string_init(ZEND_STRL("message"), 1);
-	zend_declare_typed_property(zend_ce_deprecated_attribute, str, &tmp, ZEND_ACC_PUBLIC, NULL, (zend_type) ZEND_TYPE_INIT_CODE(IS_STRING, 0, 0));
+	zend_declare_typed_property(zend_ce_deprecated_attribute, str, &tmp, ZEND_ACC_PUBLIC, NULL, (zend_type) ZEND_TYPE_INIT_MASK(MAY_BE_STRING));
 	zend_string_release(str);
 
 	attr = zend_internal_attribute_register(zend_ce_deprecated_attribute, ZEND_ATTRIBUTE_TARGET_FUNCTION | ZEND_ATTRIBUTE_TARGET_METHOD);
